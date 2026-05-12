@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FleetAI Dashboard | Intelligent Tracking</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Ambient glowing backgrounds -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-view" class="view-container active-view">
+        <div class="login-card">
+            <div class="logo-icon large-icon"><i data-lucide="satellite"></i></div>
+            <h2>Welcome to FleetAI</h2>
+            <p>Access your intelligent fleet management console.</p>
+            
+            <form id="login-form">
+                <div class="input-group" id="name-group" style="display: none;">
+                    <i data-lucide="user"></i>
+                    <input type="text" id="name" placeholder="Full Name">
+                </div>
+                <div class="input-group">
+                    <i data-lucide="mail"></i>
+                    <input type="email" id="email" placeholder="Email Address" required>
+                </div>
+                <div class="input-group">
+                    <i data-lucide="lock"></i>
+                    <input type="password" id="password" placeholder="Password" required>
+                </div>
+                <button type="submit" class="primary-btn" id="login-btn">
+                    <span id="btn-text">Authenticate</span> <i data-lucide="arrow-right"></i>
+                </button>
+            </form>
+
+            <div class="auth-toggle">
+                <p id="toggle-text">Don't have an account? <a href="#" id="toggle-auth">Register here</a></p>
+            </div>
+            
+            <div class="demo-hints">
+                <p><strong>Demo Access:</strong></p>
+                <span>admin@fleet.ai / admin</span>
+            </div>
+            <div id="login-error" class="error-msg"></div>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCREEN -->
+    <div id="app-view" class="view-container hidden-view">
+        <div class="app-container">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="logo">
+                    <div class="logo-icon"><i data-lucide="satellite"></i></div>
+                    <h1>FleetAI</h1>
+                </div>
+                
+                <div class="sidebar-section">
+                    <span class="section-label">Fleet Manager</span>
+                    <nav class="nav-menu">
+                        <div class="nav-item active" data-view="chat"><i data-lucide="sparkles"></i> AI Assistant</div>
+                        <div class="nav-item" data-view="map"><i data-lucide="map"></i> Live Map</div>
+                        <div class="nav-item" data-view="analytics"><i data-lucide="bar-chart-3"></i> Analytics</div>
+                    </nav>
+                </div>
+
+                <div class="sidebar-section">
+                    <span class="section-label">Intelligent Reporting</span>
+                    <button class="primary-btn report-btn" id="gen-report-btn" style="padding: 10px 15px; font-size: 0.85rem; width: 100%; margin-top: 8px;">
+                         <i data-lucide="file-text"></i> Download Report
+                    </button>
+                </div>
+
+                <div class="sidebar-section database-status">
+                    <span class="section-label">Platform Connection</span>
+                    <div class="metrics-card">
+                        <div class="metric-row">
+                            <span class="metric-label">Access Level</span>
+                            <span class="metric-value role-badge" id="role-display">USER</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Database</span>
+                            <span class="metric-value status-online">Traccar Online</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="user-profile">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="avatar">
+                        <div class="user-info">
+                            <span class="user-name" id="user-name-display">Loading...</span>
+                            <button id="logout-btn" class="logout-link">Sign Out</button>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            <main class="main-content">
+                <div id="view-chat" class="sub-view active">
+                    <header class="chat-header">
+                        <div class="header-info">
+                            <h2>Fleet Intelligence Console</h2>
+                            <p>End-to-End Encrypted RAG Telemetry Querying.</p>
+                        </div>
+                    </header>
+
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="message system">
+                            <div class="avatar-sys"><i data-lucide="bot"></i></div>
+                            <div class="message-content">
+                                <h3>Secure Session Authorized ✓</h3>
+                                <p>I am your AI Fleet Intelligence assistant, operating under your strict RBAC perimeter. I have direct access to your live Traccar database.</p>
+                                <div class="quick-prompts">
+                                    <button class="prompt-chip">How many vehicles do I have?</button>
+                                    <button class="prompt-chip">Show all active vehicles</button>
+                                    <button class="prompt-chip">Any overspeeding today?</button>
+                                    <button class="prompt-chip">Which vehicles are offline?</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <div class="input-container">
+                            <div class="input-wrapper">
+                                <input type="text" id="user-input" placeholder="Query your fleet data..." autocomplete="off">
+                                <button id="send-btn" class="send-btn"><i data-lucide="send"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-map" class="sub-view">
+                    <header class="chat-header">
+                        <div class="header-info">
+                            <h2>Live Fleet Operations</h2>
+                            <p>Real-time geospatial tracking across your perimeter.</p>
+                        </div>
+                    </header>
+                    <div class="map-placeholder">
+                        <div class="map-overlay">
+                            <i data-lucide="satellite" style="width:56px;height:56px;color:var(--accent-primary);margin-bottom:1rem;"></i>
+                            <h3 style="color:var(--text-pure);margin-bottom:0.5rem;">Mapbox Integration Ready</h3>
+                            <p style="color:var(--text-secondary);font-size:0.9rem;">Connect a Mapbox API key to enable live vehicle tracking</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-analytics" class="sub-view">
+                    <header class="chat-header">
+                        <div class="header-info">
+                            <h2>Executive Analytics</h2>
+                            <p id="analytics-subtitle">Syncing live telemetry engine...</p>
+                        </div>
+                        <button class="glass-btn" onclick="loadDashboardData()">
+                            <i data-lucide="refresh-cw"></i> Force Sync
+                        </button>
+                    </header>
+
+                    <div class="analytics-scroll-area">
+
+                        <!-- ① KPI Card Strip -->
+                        <div class="kpi-strip">
+                            <div class="kpi-card kpi-indigo">
+                                <div class="kpi-icon"><i data-lucide="truck"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-label">Total Fleet</span>
+                                    <span class="kpi-value" id="kpi-total">—</span>
+                                    <span class="kpi-sub">Registered vehicles</span>
+                                </div>
+                                <div class="kpi-glow kpi-glow-indigo"></div>
+                            </div>
+                            <div class="kpi-card kpi-green">
+                                <div class="kpi-icon"><i data-lucide="activity"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-label">Active Now</span>
+                                    <span class="kpi-value" id="kpi-active">—</span>
+                                    <span class="kpi-sub">Last 5 minutes</span>
+                                </div>
+                                <div class="kpi-glow kpi-glow-green"></div>
+                            </div>
+                            <div class="kpi-card kpi-cyan">
+                                <div class="kpi-icon"><i data-lucide="pause-circle"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-label">Idle Units</span>
+                                    <span class="kpi-value" id="kpi-idle">—</span>
+                                    <span class="kpi-sub">Speed = 0</span>
+                                </div>
+                                <div class="kpi-glow kpi-glow-cyan"></div>
+                            </div>
+                            <div class="kpi-card kpi-amber">
+                                <div class="kpi-icon"><i data-lucide="clock-alert"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-label">Stale (&gt;24h)</span>
+                                    <span class="kpi-value" id="kpi-stale">—</span>
+                                    <span class="kpi-sub">Action required</span>
+                                </div>
+                                <div class="kpi-glow kpi-glow-amber"></div>
+                            </div>
+                            <div class="kpi-card kpi-red">
+                                <div class="kpi-icon"><i data-lucide="zap"></i></div>
+                                <div class="kpi-body">
+                                    <span class="kpi-label">Overspeeding</span>
+                                    <span class="kpi-value" id="kpi-overspeed">—</span>
+                                    <span class="kpi-sub">Above 80 km/h</span>
+                                </div>
+                                <div class="kpi-glow kpi-glow-red"></div>
+                            </div>
+                        </div>
+
+                        <!-- ② Ring Gauges + Bar Chart -->
+                        <div class="gauges-row">
+                            <!-- Ring Gauge: Active Rate -->
+                            <div class="widget-card ring-widget">
+                                <div class="ring-label-top">Active Rate</div>
+                                <div class="ring-wrap">
+                                    <svg class="ring-svg" viewBox="0 0 100 100">
+                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
+                                        <circle class="ring-fill ring-fill-green" id="ring-active" cx="50" cy="50" r="40"
+                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
+                                    </svg>
+                                    <div class="ring-center">
+                                        <span class="ring-pct" id="ring-active-pct">0%</span>
+                                        <small>of fleet</small>
+                                    </div>
+                                </div>
+                                <div class="ring-sub-row">
+                                    <span id="ring-active-count">— active</span>
+                                </div>
+                            </div>
+
+                            <!-- Ring Gauge: Fleet Health -->
+                            <div class="widget-card ring-widget">
+                                <div class="ring-label-top">Fleet Health</div>
+                                <div class="ring-wrap">
+                                    <svg class="ring-svg" viewBox="0 0 100 100">
+                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
+                                        <circle class="ring-fill ring-fill-indigo" id="ring-health" cx="50" cy="50" r="40"
+                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
+                                    </svg>
+                                    <div class="ring-center">
+                                        <span class="ring-pct" id="ring-health-pct">0%</span>
+                                        <small>healthy</small>
+                                    </div>
+                                </div>
+                                <div class="ring-sub-row">
+                                    <span id="ring-health-label">Calculating...</span>
+                                </div>
+                            </div>
+
+                            <!-- Ring Gauge: Stale Rate -->
+                            <div class="widget-card ring-widget">
+                                <div class="ring-label-top">Stale Rate</div>
+                                <div class="ring-wrap">
+                                    <svg class="ring-svg" viewBox="0 0 100 100">
+                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
+                                        <circle class="ring-fill ring-fill-amber" id="ring-stale" cx="50" cy="50" r="40"
+                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
+                                    </svg>
+                                    <div class="ring-center">
+                                        <span class="ring-pct" id="ring-stale-pct">0%</span>
+                                        <small>offline</small>
+                                    </div>
+                                </div>
+                                <div class="ring-sub-row">
+                                    <span id="ring-stale-count">— stale units</span>
+                                </div>
+                            </div>
+
+                            <!-- Bar Chart: Vehicle Status Breakdown -->
+                            <div class="widget-card bar-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="bar-chart-3"></i> Status Breakdown</h3>
+                                </div>
+                                <div class="bar-chart-wrap">
+                                    <canvas id="statusBarChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Animated Meters: Fleet Progress -->
+                            <div class="widget-card meters-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="gauge"></i> Fleet Metrics</h3>
+                                </div>
+                                <div class="meters-list">
+                                    <div class="meter-item-row">
+                                        <div class="meter-meta">
+                                            <span class="meter-name">Avg Speed</span>
+                                            <span class="meter-val" id="meter-speed">— km/h</span>
+                                        </div>
+                                        <div class="meter-track"><div class="meter-bar meter-bar-cyan" id="mbar-speed" style="width:0%"></div></div>
+                                    </div>
+                                    <div class="meter-item-row">
+                                        <div class="meter-meta">
+                                            <span class="meter-name">Avg Fuel</span>
+                                            <span class="meter-val" id="meter-fuel">—%</span>
+                                        </div>
+                                        <div class="meter-track"><div class="meter-bar meter-bar-indigo" id="mbar-fuel" style="width:0%"></div></div>
+                                    </div>
+                                    <div class="meter-item-row">
+                                        <div class="meter-meta">
+                                            <span class="meter-name">Online Rate</span>
+                                            <span class="meter-val" id="meter-online">—%</span>
+                                        </div>
+                                        <div class="meter-track"><div class="meter-bar meter-bar-green" id="mbar-online" style="width:0%"></div></div>
+                                    </div>
+                                    <div class="meter-item-row">
+                                        <div class="meter-meta">
+                                            <span class="meter-name">Alert Score</span>
+                                            <span class="meter-val" id="meter-alert">—</span>
+                                        </div>
+                                        <div class="meter-track"><div class="meter-bar meter-bar-red" id="mbar-alert" style="width:0%"></div></div>
+                                    </div>
+                                    <div class="meter-item-row">
+                                        <div class="meter-meta">
+                                            <span class="meter-name">Fleet Score</span>
+                                            <span class="meter-val" id="meter-score">—/100</span>
+                                        </div>
+                                        <div class="meter-track"><div class="meter-bar meter-bar-purple" id="mbar-score" style="width:0%"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ③ Charts Row: Trend + Donut + Speed Histogram -->
+                        <div class="charts-row-3">
+                            <div class="widget-card chart-widget-main">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="trending-up"></i> Speed &amp; Fuel Trends</h3>
+                                    <div class="chart-controls">
+                                        <span class="ctrl-btn active" id="ctrl-24h">LIVE</span>
+                                    </div>
+                                </div>
+                                <div class="chart-container-main">
+                                    <canvas id="fleetTrendChart"></canvas>
+                                </div>
+                            </div>
+
+                            <div class="widget-card donut-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="pie-chart"></i> Fleet Brands (VIN)</h3>
+                                    <span class="status-pill pulse">Live</span>
+                                </div>
+                                <div class="donut-container">
+                                    <canvas id="fleetStatusChart"></canvas>
+                                    <div class="donut-center-label">
+                                        <span id="donut-total">—</span>
+                                        <small>vehicles</small>
+                                    </div>
+                                </div>
+                                <div class="donut-legend" id="donut-legend"></div>
+                            </div>
+
+                            <div class="widget-card speed-hist-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="wind"></i> Speed Distribution</h3>
+                                </div>
+                                <div class="chart-container-sm">
+                                    <canvas id="speedHistChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Eco & Drivers Row -->
+                        <div class="eco-row">
+                            <div class="widget-card fuel-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="fuel"></i> Live Fuel Levels & Economy</h3>
+                                </div>
+                                <div class="fuel-list-scroll" id="fuel-list"></div>
+                            </div>
+                            
+                            <div class="widget-card drivers-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="users"></i> Duty Drivers (Live)</h3>
+                                </div>
+                                <div class="drivers-list-scroll" id="drivers-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- ④ Telemetry Table + Events Feed -->
+                        <div class="bottom-row">
+                            <div class="widget-card telemetry-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="monitor"></i> Live Telemetry Matrix</h3>
+                                    <div class="table-meta">
+                                        <span class="status-pill pulse">Live Sync</span>
+                                        <span class="vehicle-count-badge" id="vehicle-count-badge">— units</span>
+                                    </div>
+                                </div>
+                                <div class="matrix-scroll">
+                                    <table class="telemetry-table" id="telemetry-table">
+                                        <thead>
+                                            <tr>
+                                                <th><i data-lucide="truck" style="width:12px;height:12px;"></i> Vehicle</th>
+                                                <th>VIN Details</th>
+                                                <th>Speed</th>
+                                                <th>Fuel</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="telemetry-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="widget-card events-widget">
+                                <div class="widget-header">
+                                    <h3 class="widget-title"><i data-lucide="shield-alert"></i> Operations Feed</h3>
+                                    <span class="event-count-badge" id="event-count-badge">0 events</span>
+                                </div>
+                                <div class="events-scroll" id="recent-events-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- ⑤ System Health Footer -->
+                        <div class="system-meta-strip">
+                            <div class="meta-item">
+                                <i data-lucide="database"></i><span>DB: Online</span>
+                            </div>
+                            <div class="meta-item">
+                                <i data-lucide="cpu"></i><span>AI Core: Active</span>
+                            </div>
+                            <div class="meta-item">
+                                <i data-lucide="clock"></i>
+                                <span>Last Sync: <span id="health-time">--</span></span>
+                            </div>
+                            <div class="meta-item" style="margin-left:auto;">
+                                <i data-lucide="route"></i><span id="hdr-distance">—</span>
+                            </div>
+                            <div class="meta-item">
+                                <i data-lucide="fuel"></i><span id="hdr-fuel-saved">—</span>
+                            </div>
+                            <div class="meta-item">
+                                <i data-lucide="leaf"></i><span id="hdr-co2">—</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
