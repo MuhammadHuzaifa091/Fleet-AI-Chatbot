@@ -1,0 +1,217 @@
+<!-- frontend_manual_vin_input.html -->
+<style>
+  .vin-entry-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    max-width: 400px;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: none; /* Initially hidden, opened by banner */
+    border: 1px solid #eaeaea;
+  }
+  .vin-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .vin-entry-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  .vin-entry-close {
+    cursor: pointer;
+    color: #888;
+    background: none;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .vin-entry-close:hover {
+    color: #333;
+  }
+  .vin-input-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .vin-input-label {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .vin-input {
+    padding: 12px 14px;
+    font-size: 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    outline: none;
+    transition: all 0.2s ease;
+    background: #f9fafb;
+    color: #111827;
+  }
+  .vin-input:focus {
+    border-color: #3b82f6;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  .vin-input.is-invalid {
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+  .vin-error-msg {
+    color: #ef4444;
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 16px;
+    font-weight: 500;
+  }
+  .vin-submit-btn {
+    margin-top: 20px;
+    padding: 12px;
+    background-color: #0f172a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    width: 100%;
+  }
+  .vin-submit-btn:hover:not(:disabled) {
+    background-color: #1e293b;
+  }
+  .vin-submit-btn:disabled {
+    background-color: #cbd5e1;
+    cursor: not-allowed;
+  }
+</style>
+
+<div id="vinEntryContainer" class="vin-entry-card">
+  <div class="vin-entry-header">
+    <div class="vin-entry-title">Manual VIN Configuration</div>
+    <button class="vin-entry-close" onclick="closeVinModal()">&times;</button>
+  </div>
+  <div class="vin-input-group">
+    <label class="vin-input-label" for="vinInput">17-Character Vehicle Identification Number</label>
+    <input type="text" id="vinInput" class="vin-input" placeholder="e.g. 1HGCM82633A004..." maxlength="17" autocomplete="off" spellcheck="false" />
+    <div id="vinErrorMsg" class="vin-error-msg"></div>
+  </div>
+  <button id="vinSubmitBtn" class="vin-submit-btn" onclick="submitManualVIN()" disabled>Save Profiling Data</button>
+</div>
+
+<script>
+  const vinInput = document.getElementById('vinInput');
+  const errorMsg = document.getElementById('vinErrorMsg');
+  const submitBtn = document.getElementById('vinSubmitBtn');
+  
+  // Set this based on the active dashboard context
+  let activeDeviceId = 1; 
+
+  // International VIN regex criteria: Exactly 17 chars, Alphanumeric, NO letters I, O, Q
+  const manualVinRegex = /^[A-HJ-NPR-Z0-9]{17}$/i;
+
+  function closeVinModal() {
+    document.getElementById('vinEntryContainer').style.display = 'none';
+    // reset form
+    vinInput.value = '';
+    vinInput.classList.remove('is-invalid');
+    errorMsg.textContent = '';
+    submitBtn.disabled = true;
+  }
+
+  vinInput.addEventListener('input', function(e) {
+    // Force uppercase automatically for cleaner UX
+    this.value = this.value.toUpperCase(); 
+    validateVinOnFly();
+  });
+
+  function validateVinOnFly() {
+    const val = vinInput.value;
+    
+    if (val.length === 0) {
+        setVinInvalid('');
+        return false;
+    }
+    
+    // Check for illegal characters first to give immediate feedback
+    if (/[IOQ]/.test(val)) {
+        setVinInvalid('VIN cannot contain the letters I, O, or Q (International Standard).');
+        return false;
+    }
+    
+    if (val.length !== 17) {
+        setVinInvalid(`VIN must be exactly 17 characters (currently ${val.length}/17).`);
+        return false;
+    }
+    
+    if (!manualVinRegex.test(val)) {
+        setVinInvalid('Invalid format. Use only alphanumeric characters.');
+        return false;
+    }
+    
+    setVinValid();
+    return true;
+  }
+
+  function setVinInvalid(msg) {
+    if (msg) {
+      vinInput.classList.add('is-invalid');
+      errorMsg.textContent = msg;
+    } else {
+      vinInput.classList.remove('is-invalid');
+      errorMsg.textContent = '';
+    }
+    submitBtn.disabled = true;
+  }
+
+  function setVinValid() {
+    vinInput.classList.remove('is-invalid');
+    errorMsg.textContent = '';
+    submitBtn.disabled = false;
+  }
+
+  async function submitManualVIN() {
+    if (!validateVinOnFly()) return;
+
+    submitBtn.disabled = true;
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Authenticating & Saving...';
+
+    try {
+        const response = await fetch(`/api/devices/${activeDeviceId}/vin`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vin: vinInput.value })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            submitBtn.textContent = 'Enrichment Pipeline Started ✔';
+            submitBtn.style.backgroundColor = '#10b981';
+            
+            setTimeout(() => {
+                closeVinModal();
+                submitBtn.style.backgroundColor = '';
+                submitBtn.textContent = originalText;
+                
+                // Hide the amber banner globally since enrichment is in progress
+                const banner = document.getElementById('vinWarningBanner');
+                if(banner) banner.classList.add('vin-hidden');
+            }, 1500);
+        } else {
+            setVinInvalid(data.detail || 'Server error occurred during VIN save.');
+            submitBtn.textContent = originalText;
+        }
+    } catch (error) {
+        setVinInvalid('Network failure. Could not reach telemetry server.');
+        submitBtn.textContent = originalText;
+    }
+  }
+</script>

@@ -22,39 +22,53 @@ async def get_stats_summary(
         role = current_user.get("role", "USER")
         user_id = current_user.get("id", 0)
 
+        from app.models.traccar import Device, Position, Event, UserDevice
+        from sqlalchemy import select, func
+        from datetime import timedelta
+
         if role == "SUPERADMIN" or role == "ADMIN":
             # Full fleet stats
-            total_res = await db.execute(text("SELECT COUNT(*) as cnt FROM tc_devices WHERE disabled=0"))
+            total_res = await db.execute(select(func.count(Device.id)).where(Device.disabled == False))
             total = total_res.scalar() or 0
 
-            online_res = await db.execute(text("SELECT COUNT(*) as cnt FROM tc_devices WHERE status='online' AND disabled=0"))
+            online_res = await db.execute(select(func.count(Device.id)).where(Device.status == 'online', Device.disabled == False))
             online = online_res.scalar() or 0
 
-            moving_res = await db.execute(text(
-                "SELECT COUNT(*) FROM tc_devices d JOIN tc_positions p ON d.positionid=p.id WHERE d.disabled=0 AND p.speed > 1"
-            ))
+            moving_res = await db.execute(
+                select(func.count(Device.id))
+                .join(Position, Device.positionid == Position.id)
+                .where(Device.disabled == False, Position.speed > 1)
+            )
             moving = moving_res.scalar() or 0
 
-            overspeed_res = await db.execute(text(
-                "SELECT COUNT(*) FROM tc_events WHERE type='deviceOverspeed' AND servertime >= NOW() - INTERVAL 1 DAY"
-            ))
+            overspeed_res = await db.execute(
+                select(func.count(Event.id))
+                .where(Event.type == 'deviceOverspeed', Event.servertime >= datetime.utcnow() - timedelta(days=1))
+            )
             overspeed = overspeed_res.scalar() or 0
 
         else:
             # Restricted USER — only their assigned devices
-            total_res = await db.execute(text(
-                "SELECT COUNT(*) FROM tc_devices d JOIN tc_user_device ud ON d.id=ud.deviceid WHERE ud.userid=:uid AND d.disabled=0"
-            ), {"uid": user_id})
+            total_res = await db.execute(
+                select(func.count(Device.id))
+                .join(UserDevice, UserDevice.deviceid == Device.id)
+                .where(UserDevice.userid == user_id, Device.disabled == False)
+            )
             total = total_res.scalar() or 0
 
-            online_res = await db.execute(text(
-                "SELECT COUNT(*) FROM tc_devices d JOIN tc_user_device ud ON d.id=ud.deviceid WHERE ud.userid=:uid AND d.status='online' AND d.disabled=0"
-            ), {"uid": user_id})
+            online_res = await db.execute(
+                select(func.count(Device.id))
+                .join(UserDevice, UserDevice.deviceid == Device.id)
+                .where(UserDevice.userid == user_id, Device.status == 'online', Device.disabled == False)
+            )
             online = online_res.scalar() or 0
 
-            moving_res = await db.execute(text(
-                "SELECT COUNT(*) FROM tc_devices d JOIN tc_positions p ON d.positionid=p.id JOIN tc_user_device ud ON d.id=ud.deviceid WHERE ud.userid=:uid AND d.disabled=0 AND p.speed > 1"
-            ), {"uid": user_id})
+            moving_res = await db.execute(
+                select(func.count(Device.id))
+                .join(Position, Device.positionid == Position.id)
+                .join(UserDevice, UserDevice.deviceid == Device.id)
+                .where(UserDevice.userid == user_id, Device.disabled == False, Position.speed > 1)
+            )
             moving = moving_res.scalar() or 0
 
             overspeed = 0  # Simplified for USER role

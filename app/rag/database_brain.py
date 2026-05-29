@@ -49,12 +49,16 @@ DASHBOARD SUMMARY CARDS:
 - ROLE-BASED: 'user' (assigned only), 'admin' (their group), 'superadmin' (all).
 - MILEAGE TRACKER: SELECT deviceid, DATE(servertime) as date, MAX(attributes->>'totalDistance') as total_km FROM tc_positions GROUP BY deviceid, DATE(servertime)
 - DRIVER BEHAVIOR: Deduct score based on events (Speeding: -10, Harsh Braking: -5, Idle > 1hr: -15, Geofence: -20).
+- VIN INTELLIGENCE: 17-digit VIN as identity. If VIN requested, show Make, Model, Year, Engine, Fuel Type from tc_devices.attributes.
+- FUEL ANALYTICS: Use JSON_EXTRACT(attributes, '$.fuelLevel') for consumption and refuel events.
+- IDLING COST: Waste = Idling Hours * 2.5 Liters/Hour * Current Fuel Price.
 
 ──────────────────────────────
 👑 LEVEL 3: ADVANCED FEATURES
 ──────────────────────────────
-- PREDICTIVE MAINTENANCE: Service due if totalDistance > 5000km since last service.
+- PREDICTIVE MAINTENANCE: Service due if totalDistance > 5000km since last service. Track P-codes (DTC) in tc_events.
 - HEAT MAP: ROUND(latitude, 2), ROUND(longitude, 2), activity_count.
+- SAFETY SCORECARD: AI Score based on speed violations, harsh events, and idle ratio.
 
 ──────────────────────────────
 💎 LEVEL 4: PREMIUM FEATURES
@@ -67,7 +71,9 @@ DASHBOARD SUMMARY CARDS:
 ──────────────────────────────
 - If no data found → "No data found".
 - MANDATORY: Use Markdown tables for multiple vehicles, stats, or lists. NO bullet points for multi-attribute data.
-- Detect user language and respond in kind (Hinglish/English).
+- LANGUAGE CONTROL: Respond ONLY in English or Roman Urdu.
+- DO NOT use Hindi (Devanagari script) or any other languages.
+- Tone: Clean, professional, simple, and helpful.
 """
 
 def get_sql_prompt(query, rbac_restriction, count_clause):
@@ -84,14 +90,18 @@ def get_sql_prompt(query, rbac_restriction, count_clause):
 
     {rbac_restriction}
     
-    IF the user asks for count/total of vehicles/devices, use: {count_clause};
+    IF the user asks for count/total of vehicles/devices, use a subquery or join to ensure RBAC if required: {count_clause};
     
     Business Logic:
     - Active: status = 'online'
-    - Idle: status = 'offline' and lastupdate in last 24h
-    - Stale/Offline: status = 'offline' and no update in > 24h
-    - Harsh Braking/Acceleration: event types in tc_events
-    - Mileage: 'totalDistance' in tc_positions.attributes (JSON)
+    - Idle: status = 'offline' and lastupdate > NOW() - INTERVAL 1 DAY
+    - Stale/Offline: status = 'offline' and lastupdate < NOW() - INTERVAL 1 DAY
+    - Harsh Events: tc_events.type IN ('harshBraking', 'harshAcceleration', 'harshCornering')
+    - Speeding: tc_events.type = 'deviceOverspeed'
+    - VIN: JSON_EXTRACT(tc_devices.attributes, '$.vin')
+    - Fuel: JSON_EXTRACT(tc_positions.attributes, '$.fuelLevel')
+    - Mileage: JSON_EXTRACT(tc_positions.attributes, '$.totalDistance') / 1000 in km
+    - Maintenance: Check JSON_EXTRACT(tc_devices.attributes, '$.nextServiceOdometer')
     
     Request: {query}
     """

@@ -3,455 +3,1061 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FleetAI Dashboard | Intelligent Tracking</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>AI - Telemetrix | Premium AI Telematics</title>
+    <link rel="stylesheet" href="/static/style.css?v=6.8">
+    <link rel="stylesheet" href="/static/vin.css?v=6.8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <!-- Ambient glowing backgrounds -->
+    <!-- Background Design -->
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
-    <div class="ambient-glow glow-3"></div>
 
     <!-- LOGIN SCREEN -->
     <div id="login-view" class="view-container active-view">
-        <div class="login-card">
-            <div class="logo-icon large-icon"><i data-lucide="satellite"></i></div>
-            <h2>Welcome to FleetAI</h2>
-            <p>Access your intelligent fleet management console.</p>
-            
-            <form id="login-form">
-                <div class="input-group" id="name-group" style="display: none;">
-                    <i data-lucide="user"></i>
-                    <input type="text" id="name" placeholder="Full Name">
+        <div class="login-screen">
+            <div class="login-background">
+                <div class="mesh-gradient"></div>
+                <div class="floating-elements">
+                    <div class="float-item"></div>
+                    <div class="float-item"></div>
+                    <div class="float-item"></div>
                 </div>
-                <div class="input-group">
-                    <i data-lucide="mail"></i>
-                    <input type="email" id="email" placeholder="Email Address" required>
-                </div>
-                <div class="input-group">
-                    <i data-lucide="lock"></i>
-                    <input type="password" id="password" placeholder="Password" required>
-                </div>
-                <button type="submit" class="primary-btn" id="login-btn">
-                    <span id="btn-text">Authenticate</span> <i data-lucide="arrow-right"></i>
-                </button>
-            </form>
-
-            <div class="auth-toggle">
-                <p id="toggle-text">Don't have an account? <a href="#" id="toggle-auth">Register here</a></p>
             </div>
-            
-            <div class="demo-hints">
-                <p><strong>Demo Access:</strong></p>
-                <span>admin@fleet.ai / admin</span>
-            </div>
-            <div id="login-error" class="error-msg"></div>
-        </div>
-    </div>
-
-    <!-- MAIN APP SCREEN -->
-    <div id="app-view" class="view-container hidden-view">
-        <div class="app-container">
-            <!-- Sidebar -->
-            <aside class="sidebar">
-                <div class="logo">
-                    <div class="logo-icon"><i data-lucide="satellite"></i></div>
-                    <h1>FleetAI</h1>
+            <div class="glass-login-card">
+                <div class="logo-wrapper" style="margin-bottom: 32px; display: flex; justify-content: center;">
+                    <div class="logo-icon" style="width: 60px; height: 60px; font-size: 2rem;">
+                        <i data-lucide="zap"></i>
+                    </div>
                 </div>
-                
-                <div class="sidebar-section">
-                    <span class="section-label">Fleet Manager</span>
-                    <nav class="nav-menu">
-                        <div class="nav-item active" data-view="chat"><i data-lucide="sparkles"></i> AI Assistant</div>
-                        <div class="nav-item" data-view="map"><i data-lucide="map"></i> Live Map</div>
-                        <div class="nav-item" data-view="analytics"><i data-lucide="bar-chart-3"></i> Analytics</div>
-                    </nav>
-                </div>
+                <h2 class="login-title" data-i18n="login_title">AI - Telemetrix</h2>
+                <p class="login-subtitle" data-i18n="login_subtitle">Enterprise Intelligence Portal</p>
 
-                <div class="sidebar-section">
-                    <span class="section-label">Intelligent Reporting</span>
-                    <button class="primary-btn report-btn" id="gen-report-btn" style="padding: 10px 15px; font-size: 0.85rem; width: 100%; margin-top: 8px;">
-                         <i data-lucide="file-text"></i> Download Report
-                    </button>
-                </div>
-
-                <div class="sidebar-section database-status">
-                    <span class="section-label">Platform Connection</span>
-                    <div class="metrics-card">
-                        <div class="metric-row">
-                            <span class="metric-label">Access Level</span>
-                            <span class="metric-value role-badge" id="role-display">USER</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Database</span>
-                            <span class="metric-value status-online">Traccar Online</span>
-                        </div>
+                <!-- Language Selector -->
+                <div class="lang-selector-wrapper">
+                    <div class="lang-select-container">
+                        <i data-lucide="languages" class="lang-icon"></i>
+                        <select id="ui-lang-select" class="lang-dropdown">
+                            <option value="en">English (US)</option>
+                            <option value="ur">اردو (Urdu)</option>
+                            <option value="ar">العربية (Arabic)</option>
+                            <option value="zh">中文 (Chinese)</option>
+                            <option value="es">Español (Spanish)</option>
+                            <option value="fr">Français (French)</option>
+                            <option value="de">Deutsch (German)</option>
+                            <option value="ru">Русский (Russian)</option>
+                            <option value="pt">Português (Portuguese)</option>
+                            <option value="tr">Türkçe (Turkish)</option>
+                            <option value="it">Italiano (Italian)</option>
+                            <option value="hi">हिन्दी (Hindi)</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="sidebar-footer">
+                <form id="login-form" class="auth-form">
+                    <div class="input-wrapper" id="name-group" style="display: none;">
+                        <label data-i18n="label_name">Full Name</label>
+                        <i data-lucide="user"></i>
+                        <input type="text" id="name" class="input-field" placeholder="Enter name" data-i18n-placeholder="label_name">
+                    </div>
+                    <div class="input-wrapper">
+                        <label data-i18n="label_email">Corporate Email</label>
+                        <i data-lucide="mail"></i>
+                        <input type="email" id="email" class="input-field" placeholder="name@company.com" required data-i18n-placeholder="label_email">
+                    </div>
+                    <div class="input-wrapper">
+                        <label data-i18n="label_password">Security Key</label>
+                        <i data-lucide="lock"></i>
+                        <input type="password" id="password" class="input-field" placeholder="••••••••" required data-i18n-placeholder="label_password">
+                    </div>
+
+                    <button type="submit" class="auth-btn" data-i18n="btn_access">
+                        <span>Access System</span> <i data-lucide="shield-check"></i>
+                    </button>
+                    
+                    <div style="margin-top: 32px; font-size: 0.85rem; color: var(--text-dim); background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid var(--border-light);">
+                        <div style="margin-bottom: 4px;" data-i18n="demo_access">Demo Access:</div>
+                        <div style="color: var(--brand-primary); font-weight: 700;">admin@fleet.ai / admin</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" data-i18n="demo_note">Valid for all fleet intelligence modules</div>
+                    </div>
+                    <p id="toggle-text" style="margin-top: 24px; font-size: 0.9rem; color: var(--text-muted);" data-i18n="new_to">
+                        New to Telemetrix? <a href="#" id="toggle-auth" style="color: var(--brand-primary); text-decoration: none; font-weight: 700;" data-i18n="req_access">Request Access</a>
+                    </p>
+                </form>
+                <div id="login-error" class="error-msg" style="margin-top: 20px; color: var(--brand-danger); font-size: 0.85rem; font-weight: 600;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="app-view" class="view-container hidden-view">
+        <div class="app-container">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <button id="toggle-sidebar" class="sidebar-toggle">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <div class="logo" style="margin-bottom: 40px;">
+                    <div class="logo-icon" style="background: var(--brand-primary); color: white; border-radius: 10px;"><i data-lucide="zap"></i></div>
+                    <h1 style="font-size: 1.3rem;">AI - Telemetrix</h1>
+                </div>
+                
+                <nav class="nav-menu">
+                    <a href="#" class="nav-item active" data-view="analytics" data-i18n="nav_dashboard">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="map" data-i18n="nav_map">
+                        <i data-lucide="map"></i>
+                        <span>Live Map</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="vehicle-intel" data-i18n="nav_intel">
+                        <i data-lucide="info"></i>
+                        <span>Vehicle Intelligence</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="fuel" data-i18n="nav_fuel">
+                        <i data-lucide="fuel"></i>
+                        <span>Fuel Analytics</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="safety" data-i18n="nav_safety">
+                        <i data-lucide="user-check"></i>
+                        <span>Driver Safety</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="maintenance" data-i18n="nav_maint">
+                        <i data-lucide="wrench"></i>
+                        <span>Maintenance</span>
+                    </a>
+                </nav>
+
+                <div class="sidebar-footer" style="margin-top: auto;">
                     <div class="user-profile">
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" class="avatar">
+                        <div class="profile-initials">AF</div>
                         <div class="user-info">
-                            <span class="user-name" id="user-name-display">Loading...</span>
-                            <button id="logout-btn" class="logout-link">Sign Out</button>
+                            <span class="user-name" id="user-name-display">Ali Farhan</span>
+                            <span id="role-display" style="display: block; font-size: 0.65rem; color: var(--brand-success); font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                                <span id="role-text">ADMIN</span>
+                                <button id="admin-sync-btn" title="Force Cloud Sync" style="display:none; background:none; border:none; color:inherit; cursor:pointer; opacity:0.3; transition: opacity 0.3s; padding:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.3">
+                                    <i data-lucide="cloud-lightning" style="width:12px;"></i>
+                                </button>
+                            </span>
+                            <button id="logout-btn" class="logout-link">
+                                <i data-lucide="log-out"></i> Sign Out
+                            </button>
                         </div>
                     </div>
                 </div>
             </aside>
-            <main class="main-content">
-                <div id="view-chat" class="sub-view active">
-                    <header class="chat-header">
-                        <div class="header-info">
-                            <h2>Fleet Intelligence Console</h2>
-                            <p>End-to-End Encrypted RAG Telemetry Querying.</p>
-                        </div>
-                    </header>
 
-                    <div id="chat-messages" class="chat-messages">
-                        <div class="message system">
-                            <div class="avatar-sys"><i data-lucide="bot"></i></div>
-                            <div class="message-content">
-                                <h3>Secure Session Authorized ✓</h3>
-                                <p>I am your AI Fleet Intelligence assistant, operating under your strict RBAC perimeter. I have direct access to your live Traccar database.</p>
-                                <div class="quick-prompts">
-                                    <button class="prompt-chip">How many vehicles do I have?</button>
-                                    <button class="prompt-chip">Show all active vehicles</button>
-                                    <button class="prompt-chip">Any overspeeding today?</button>
-                                    <button class="prompt-chip">Which vehicles are offline?</button>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Main Content -->
+            <div class="main-wrapper">
+                <header class="top-header">
+                    <div class="header-main">
+                        <h1 class="section-title" data-i18n="dash_title">Fleet Command Center</h1>
+                        <p data-i18n="dash_subtitle">AI-Driven Real-time Intelligence</p>
                     </div>
-
-                    <div class="input-area">
-                        <div class="input-container">
-                            <div class="input-wrapper">
-                                <input type="text" id="user-input" placeholder="Query your fleet data..." autocomplete="off">
-                                <button id="send-btn" class="send-btn"><i data-lucide="send"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="view-map" class="sub-view">
-                    <header class="chat-header">
-                        <div class="header-info">
-                            <h2>Live Fleet Operations</h2>
-                            <p>Real-time geospatial tracking across your perimeter.</p>
-                        </div>
-                    </header>
-                    <div class="map-placeholder">
-                        <div class="map-overlay">
-                            <i data-lucide="satellite" style="width:56px;height:56px;color:var(--accent-primary);margin-bottom:1rem;"></i>
-                            <h3 style="color:var(--text-pure);margin-bottom:0.5rem;">Mapbox Integration Ready</h3>
-                            <p style="color:var(--text-secondary);font-size:0.9rem;">Connect a Mapbox API key to enable live vehicle tracking</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="view-analytics" class="sub-view">
-                    <header class="chat-header">
-                        <div class="header-info">
-                            <h2>Executive Analytics</h2>
-                            <p id="analytics-subtitle">Syncing live telemetry engine...</p>
-                        </div>
-                        <button class="glass-btn" onclick="loadDashboardData()">
-                            <i data-lucide="refresh-cw"></i> Force Sync
+                    <div class="header-actions" style="display:flex; gap:12px; align-items:center;">
+                        <button id="global-theme-toggle" class="glass-btn secondary" title="Toggle Theme">
+                            <i data-lucide="sun"></i>
                         </button>
-                    </header>
+                        <button id="manual-pc12-sync-btn" class="glass-btn" style="display:none; color:var(--brand-warning); border-color:var(--brand-warning)20;">
+                            <i data-lucide="cloud-download"></i> <span>Sync Production Data</span>
+                        </button>
+                        <button class="glass-btn primary-glow" onclick="loadDashboardData()">
+                            <i data-lucide="refresh-cw"></i> <span data-i18n="refresh">Refresh</span>
+                        </button>
+                    </div>
+                </header>
 
-                    <div class="analytics-scroll-area">
-
-                        <!-- ① KPI Card Strip -->
-                        <div class="kpi-strip">
-                            <div class="kpi-card kpi-indigo">
-                                <div class="kpi-icon"><i data-lucide="truck"></i></div>
-                                <div class="kpi-body">
-                                    <span class="kpi-label">Total Fleet</span>
-                                    <span class="kpi-value" id="kpi-total">—</span>
-                                    <span class="kpi-sub">Registered vehicles</span>
-                                </div>
-                                <div class="kpi-glow kpi-glow-indigo"></div>
-                            </div>
-                            <div class="kpi-card kpi-green">
-                                <div class="kpi-icon"><i data-lucide="activity"></i></div>
-                                <div class="kpi-body">
-                                    <span class="kpi-label">Active Now</span>
-                                    <span class="kpi-value" id="kpi-active">—</span>
-                                    <span class="kpi-sub">Last 5 minutes</span>
-                                </div>
-                                <div class="kpi-glow kpi-glow-green"></div>
-                            </div>
-                            <div class="kpi-card kpi-cyan">
-                                <div class="kpi-icon"><i data-lucide="pause-circle"></i></div>
-                                <div class="kpi-body">
-                                    <span class="kpi-label">Idle Units</span>
-                                    <span class="kpi-value" id="kpi-idle">—</span>
-                                    <span class="kpi-sub">Speed = 0</span>
-                                </div>
-                                <div class="kpi-glow kpi-glow-cyan"></div>
-                            </div>
-                            <div class="kpi-card kpi-amber">
-                                <div class="kpi-icon"><i data-lucide="clock-alert"></i></div>
-                                <div class="kpi-body">
-                                    <span class="kpi-label">Stale (&gt;24h)</span>
-                                    <span class="kpi-value" id="kpi-stale">—</span>
-                                    <span class="kpi-sub">Action required</span>
-                                </div>
-                                <div class="kpi-glow kpi-glow-amber"></div>
-                            </div>
-                            <div class="kpi-card kpi-red">
-                                <div class="kpi-icon"><i data-lucide="zap"></i></div>
-                                <div class="kpi-body">
-                                    <span class="kpi-label">Overspeeding</span>
-                                    <span class="kpi-value" id="kpi-overspeed">—</span>
-                                    <span class="kpi-sub">Above 80 km/h</span>
-                                </div>
-                                <div class="kpi-glow kpi-glow-red"></div>
-                            </div>
-                        </div>
-
-                        <!-- ② Ring Gauges + Bar Chart -->
-                        <div class="gauges-row">
-                            <!-- Ring Gauge: Active Rate -->
-                            <div class="widget-card ring-widget">
-                                <div class="ring-label-top">Active Rate</div>
-                                <div class="ring-wrap">
-                                    <svg class="ring-svg" viewBox="0 0 100 100">
-                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
-                                        <circle class="ring-fill ring-fill-green" id="ring-active" cx="50" cy="50" r="40"
-                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
-                                    </svg>
-                                    <div class="ring-center">
-                                        <span class="ring-pct" id="ring-active-pct">0%</span>
-                                        <small>of fleet</small>
+                <div id="view-analytics" class="sub-view active-view">
+                    <!-- Grouped Analytics Grid -->
+                    <div class="analytics-group-container">
+                        
+                        <!-- MASTER CARD: VEHICLES -->
+                        <div class="master-card-wrap" id="group-vehicles">
+                            <div class="master-card" onclick="toggleAnalyticsGroup('group-vehicles')">
+                                <div style="display:flex; align-items:center; gap: 24px;">
+                                    <div class="card-icon-large" style="background: rgba(99, 102, 241, 0.15); color: var(--brand-primary);"><i data-lucide="truck"></i></div>
+                                    <div>
+                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Vehicles</h3>
+                                        <p style="font-size:0.9rem; color:var(--text-dim);">Live fleet status & operational overview</p>
                                     </div>
                                 </div>
-                                <div class="ring-sub-row">
-                                    <span id="ring-active-count">— active</span>
+                                <div style="display:flex; align-items:center; gap: 32px;">
+                                    <div style="text-align:right;">
+                                        <div class="card-value animated-counter" id="kpi-total">0</div>
+                                        <div class="card-label" style="margin:0;" data-i18n="kpi_total">Total Units</div>
+                                    </div>
+                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
                                 </div>
                             </div>
-
-                            <!-- Ring Gauge: Fleet Health -->
-                            <div class="widget-card ring-widget">
-                                <div class="ring-label-top">Fleet Health</div>
-                                <div class="ring-wrap">
-                                    <svg class="ring-svg" viewBox="0 0 100 100">
-                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
-                                        <circle class="ring-fill ring-fill-indigo" id="ring-health" cx="50" cy="50" r="40"
-                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
-                                    </svg>
-                                    <div class="ring-center">
-                                        <span class="ring-pct" id="ring-health-pct">0%</span>
-                                        <small>healthy</small>
+                            <div class="subcards-grid">
+                                <div class="subcards-inner">
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_moving">Moving</span>
+                                        <span class="card-value animated-counter" id="kpi-moving" style="color:var(--brand-success);">0</span>
+                                        <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="trending-up"></i> Active Now</div>
                                     </div>
-                                </div>
-                                <div class="ring-sub-row">
-                                    <span id="ring-health-label">Calculating...</span>
-                                </div>
-                            </div>
-
-                            <!-- Ring Gauge: Stale Rate -->
-                            <div class="widget-card ring-widget">
-                                <div class="ring-label-top">Stale Rate</div>
-                                <div class="ring-wrap">
-                                    <svg class="ring-svg" viewBox="0 0 100 100">
-                                        <circle class="ring-track" cx="50" cy="50" r="40"/>
-                                        <circle class="ring-fill ring-fill-amber" id="ring-stale" cx="50" cy="50" r="40"
-                                            stroke-dasharray="0 251.2" stroke-dashoffset="62.8"/>
-                                    </svg>
-                                    <div class="ring-center">
-                                        <span class="ring-pct" id="ring-stale-pct">0%</span>
-                                        <small>offline</small>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_idle">Idle</span>
+                                        <span class="card-value animated-counter" id="kpi-idle" style="color:var(--brand-warning);">0</span>
+                                        <div class="card-trend" style="color:var(--brand-warning);"><i data-lucide="clock"></i> Engine On</div>
                                     </div>
-                                </div>
-                                <div class="ring-sub-row">
-                                    <span id="ring-stale-count">— stale units</span>
-                                </div>
-                            </div>
-
-                            <!-- Bar Chart: Vehicle Status Breakdown -->
-                            <div class="widget-card bar-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="bar-chart-3"></i> Status Breakdown</h3>
-                                </div>
-                                <div class="bar-chart-wrap">
-                                    <canvas id="statusBarChart"></canvas>
-                                </div>
-                            </div>
-
-                            <!-- Animated Meters: Fleet Progress -->
-                            <div class="widget-card meters-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="gauge"></i> Fleet Metrics</h3>
-                                </div>
-                                <div class="meters-list">
-                                    <div class="meter-item-row">
-                                        <div class="meter-meta">
-                                            <span class="meter-name">Avg Speed</span>
-                                            <span class="meter-val" id="meter-speed">— km/h</span>
-                                        </div>
-                                        <div class="meter-track"><div class="meter-bar meter-bar-cyan" id="mbar-speed" style="width:0%"></div></div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_stopped">Stopped</span>
+                                        <span class="card-value animated-counter" id="kpi-stopped" style="color:var(--brand-danger);">0</span>
+                                        <div class="card-trend" style="color:var(--brand-danger);"><i data-lucide="octagon"></i> Stationary</div>
                                     </div>
-                                    <div class="meter-item-row">
-                                        <div class="meter-meta">
-                                            <span class="meter-name">Avg Fuel</span>
-                                            <span class="meter-val" id="meter-fuel">—%</span>
-                                        </div>
-                                        <div class="meter-track"><div class="meter-bar meter-bar-indigo" id="mbar-fuel" style="width:0%"></div></div>
-                                    </div>
-                                    <div class="meter-item-row">
-                                        <div class="meter-meta">
-                                            <span class="meter-name">Online Rate</span>
-                                            <span class="meter-val" id="meter-online">—%</span>
-                                        </div>
-                                        <div class="meter-track"><div class="meter-bar meter-bar-green" id="mbar-online" style="width:0%"></div></div>
-                                    </div>
-                                    <div class="meter-item-row">
-                                        <div class="meter-meta">
-                                            <span class="meter-name">Alert Score</span>
-                                            <span class="meter-val" id="meter-alert">—</span>
-                                        </div>
-                                        <div class="meter-track"><div class="meter-bar meter-bar-red" id="mbar-alert" style="width:0%"></div></div>
-                                    </div>
-                                    <div class="meter-item-row">
-                                        <div class="meter-meta">
-                                            <span class="meter-name">Fleet Score</span>
-                                            <span class="meter-val" id="meter-score">—/100</span>
-                                        </div>
-                                        <div class="meter-track"><div class="meter-bar meter-bar-purple" id="mbar-score" style="width:0%"></div></div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_offline">Offline</span>
+                                        <span class="card-value animated-counter" id="kpi-offline" style="color:var(--text-dim);">0</span>
+                                        <div class="card-trend"><i data-lucide="wifi-off"></i> No Signal</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- ③ Charts Row: Trend + Donut + Speed Histogram -->
-                        <div class="charts-row-3">
-                            <div class="widget-card chart-widget-main">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="trending-up"></i> Speed &amp; Fuel Trends</h3>
-                                    <div class="chart-controls">
-                                        <span class="ctrl-btn active" id="ctrl-24h">LIVE</span>
+                        <!-- MASTER CARD: ALERTS -->
+                        <div class="master-card-wrap" id="group-alerts">
+                            <div class="master-card" onclick="toggleAnalyticsGroup('group-alerts')">
+                                <div style="display:flex; align-items:center; gap: 24px;">
+                                    <div class="card-icon-large" style="background: rgba(245, 158, 11, 0.15); color: var(--brand-warning);"><i data-lucide="bell-ring"></i></div>
+                                    <div>
+                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Alerts & Security</h3>
+                                        <p style="font-size:0.9rem; color:var(--text-dim);">Critical safety and security notifications</p>
                                     </div>
                                 </div>
-                                <div class="chart-container-main">
-                                    <canvas id="fleetTrendChart"></canvas>
-                                </div>
-                            </div>
-
-                            <div class="widget-card donut-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="pie-chart"></i> Fleet Brands (VIN)</h3>
-                                    <span class="status-pill pulse">Live</span>
-                                </div>
-                                <div class="donut-container">
-                                    <canvas id="fleetStatusChart"></canvas>
-                                    <div class="donut-center-label">
-                                        <span id="donut-total">—</span>
-                                        <small>vehicles</small>
+                                <div style="display:flex; align-items:center; gap: 32px;">
+                                    <div style="text-align:right;">
+                                        <div class="card-value animated-counter" id="kpi-alerts-total" style="color:var(--brand-warning);">0</div>
+                                        <div class="card-label" style="margin:0;" data-i18n="kpi_alerts">Active Alerts</div>
                                     </div>
+                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
                                 </div>
-                                <div class="donut-legend" id="donut-legend"></div>
                             </div>
-
-                            <div class="widget-card speed-hist-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="wind"></i> Speed Distribution</h3>
-                                </div>
-                                <div class="chart-container-sm">
-                                    <canvas id="speedHistChart"></canvas>
+                            <div class="subcards-grid">
+                                <div class="subcards-inner">
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_overspeed">Overspeed</span>
+                                        <span class="card-value animated-counter" id="kpi-overspeed" style="color:var(--brand-danger);">0</span>
+                                        <div class="card-trend" style="color:var(--brand-danger);"><i data-lucide="zap"></i> Safety Risk</div>
+                                    </div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_ignition">Ignition</span>
+                                        <span class="card-value animated-counter" id="kpi-ignition">0</span>
+                                        <div class="card-trend"><i data-lucide="key"></i> Unauthorized</div>
+                                    </div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label" data-i18n="kpi_geofence">Geofence</span>
+                                        <span class="card-value animated-counter" id="kpi-geofence">0</span>
+                                        <div class="card-trend"><i data-lucide="map-pin"></i> Boundary Exit</div>
+                                    </div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label">Offline Alerts</span>
+                                        <span class="card-value animated-counter" id="kpi-offline-alerts">0</span>
+                                        <div class="card-trend"><i data-lucide="alert-triangle"></i> Connectivity</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Eco & Drivers Row -->
-                        <div class="eco-row">
-                            <div class="widget-card fuel-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="fuel"></i> Live Fuel Levels & Economy</h3>
+                        <!-- MASTER CARD: TRIPS -->
+                        <div class="master-card-wrap" id="group-trips">
+                            <div class="master-card" onclick="toggleAnalyticsGroup('group-trips')">
+                                <div style="display:flex; align-items:center; gap: 24px;">
+                                    <div class="card-icon-large" style="background: rgba(16, 185, 129, 0.15); color: var(--brand-success);"><i data-lucide="route"></i></div>
+                                    <div>
+                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Trips & Logistics</h3>
+                                        <p style="font-size:0.9rem; color:var(--text-dim);">Historical and active route intelligence</p>
+                                    </div>
                                 </div>
-                                <div class="fuel-list-scroll" id="fuel-list"></div>
+                                <div style="display:flex; align-items:center; gap: 32px;">
+                                    <div style="text-align:right;">
+                                        <div class="card-value animated-counter" id="kpi-trips-total">0</div>
+                                        <div class="card-label" style="margin:0;">Total Trips</div>
+                                    </div>
+                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
+                                </div>
+                            </div>
+                            <div class="subcards-grid">
+                                <div class="subcards-inner">
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label">Running</span>
+                                        <span class="card-value animated-counter" id="kpi-running-trips" style="color:var(--brand-success);">0</span>
+                                        <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="play"></i> In Progress</div>
+                                    </div>
+                                    <div class="premium-card sub-card">
+                                        <span class="card-label">Completed</span>
+                                        <span class="card-value animated-counter" id="kpi-completed-trips">0</span>
+                                        <div class="card-trend"><i data-lucide="check-circle"></i> Successfully Ended</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">Fleet Dynamics</h3>
+                                <div class="stats-badge">Live Velocity & Energy</div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="fleetTrendChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">Status Distribution</h3>
+                            </div>
+                            <div class="donut-wrap">
+                                <canvas id="fleetStatusChart"></canvas>
+                                <div class="donut-center">
+                                    <h4 id="donut-total">0</h4>
+                                    <span>Total</span>
+                                </div>
+                            </div>
+                            <div class="donut-legend" id="donut-legend">
+                                <!-- Legend items injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Asset Grid Section (Moved to Bottom) -->
+                    <div class="premium-card section-card matrix-collapsed" id="asset-matrix-container">
+                        <div class="section-header" id="toggle-asset-matrix" style="cursor: pointer;">
+                            <div>
+                                <h3 class="section-title">Live Asset Matrix</h3>
+                                <p class="section-subtitle">Comprehensive fleet unit status and telemetry</p>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <span id="vehicle-count-badge" class="stats-badge">35,405 Total Units</span>
+                                <i data-lucide="chevron-down" id="matrix-toggle-icon" style="transition: transform 0.3s;"></i>
+                            </div>
+                        </div>
+                        
+                        <div id="asset-grid-wrapper">
+                            <div id="asset-grid" class="asset-grid-container" style="margin-top: 24px;">
+                                <!-- Asset cards will be injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vehicle Intelligence View -->
+                <div id="view-vehicle-intel" class="sub-view hidden-view">
+                    <div class="module-content-container">
+
+                        <!-- ── Header Row ──────────────────────────────────── -->
+                        <div class="module-header-row" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
+                            <div>
+                                <h2 class="section-title" style="margin:0;">Vehicle Intelligence</h2>
+                                <p style="color:var(--text-dim); font-size:0.82rem; margin:4px 0 0;">
+                                    Select any vehicle from the map or asset matrix to load its profile.
+                                </p>
+                            </div>
+                            <div class="vin-lookup-container" style="flex:1; min-width:280px;">
+                                <i data-lucide="search"></i>
+                                <input type="text" id="vin-search" placeholder="Search by VIN or vehicle name…">
+                                <button class="glass-btn primary-glow" onclick="vinSearchAnalyze()">Analyze VIN</button>
+                                <button class="glass-btn" onclick="triggerManualVinEntry()"
+                                    style="border:1px solid var(--brand-primary); color:var(--brand-primary);">
+                                    <i data-lucide="edit-3" style="width:14px;"></i> Add / Edit VIN
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ── Amber Incomplete Banner ─────────────────────── -->
+                        <div id="intel-amber-banner" class="vin-warning-banner vin-hidden"
+                            onclick="triggerManualVinEntry()" style="margin-top:16px; margin-bottom:0;">
+                            <span class="vin-warning-icon">⚠️</span>
+                            <span class="vin-warning-text">
+                                <strong>Vehicle Profile Incomplete</strong> — No VIN detected.
+                                Click here to manually enter the VIN and activate intelligence enrichment.
+                            </span>
+                        </div>
+
+                        <!-- ── Intelligence Dashboard (Default State) ─────────── -->
+                        <div id="intel-no-selection" style="margin-top:24px;">
+                            <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                                <h3 style="font-size: 1.1rem; display:flex; align-items:center; gap:8px;">
+                                    <i data-lucide="layout-dashboard" style="width:18px; color:var(--brand-primary);"></i>
+                                    Managed Intelligence Dashboard
+                                </h3>
+                                <span class="stats-badge" id="saved-vins-count">0 Profiles</span>
                             </div>
                             
-                            <div class="widget-card drivers-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="users"></i> Duty Drivers (Live)</h3>
+                            <div id="vin-dashboard-grid" class="vin-dashboard-grid">
+                                <!-- Cards injected via script -->
+                                <div class="empty-dashboard-placeholder" style="grid-column:1/-1; text-align:center; padding:60px; color:var(--text-dim); background:var(--bg-card); border-radius:16px; border:1px dashed var(--border-light);">
+                                    <i data-lucide="database-zap" style="width:40px; height:40px; opacity:0.3; margin-bottom:12px;"></i>
+                                    <p>No managed intelligence profiles yet. <br>Analyze a VIN above to start building your fleet knowledge base.</p>
                                 </div>
-                                <div class="drivers-list-scroll" id="drivers-list"></div>
                             </div>
                         </div>
 
-                        <!-- ④ Telemetry Table + Events Feed -->
-                        <div class="bottom-row">
-                            <div class="widget-card telemetry-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="monitor"></i> Live Telemetry Matrix</h3>
-                                    <div class="table-meta">
-                                        <span class="status-pill pulse">Live Sync</span>
-                                        <span class="vehicle-count-badge" id="vehicle-count-badge">— units</span>
+                        <!-- ── Main Intel Grid (hidden until vehicle selected) ─ -->
+                        <div id="intel-main-grid" style="display:none;">
+
+                            <!-- ROW 1: Profile Card + Dynamic Intel Card -->
+                            <div class="intel-grid" style="margin-top:20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+
+                                <!-- Profile Card -->
+                                <div class="premium-card intel-profile-card">
+                                    <div class="profile-header" style="display: flex; gap: 20px; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border-light);">
+                                        <div class="vehicle-avatar-large" style="width: 64px; height: 64px; background: var(--brand-primary); opacity: 0.2; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                                            <i data-lucide="truck" style="width: 32px; height: 32px; color: var(--brand-primary); opacity: 1;"></i>
+                                        </div>
+                                        <div class="profile-title">
+                                            <h3 id="intel-v-name" style="font-size: 1.5rem; margin-bottom: 4px;">—</h3>
+                                            <div style="display:flex; align-items:center; gap:8px;">
+                                                <code id="intel-v-vin" style="font-size:0.9rem; color:var(--text-secondary); opacity: 0.8;">—</code>
+                                                <span id="intel-vin-badge" class="stats-badge success" style="display:none;">Verified</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Specs -->
+                                    <div class="profile-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;">
+                                        <div class="detail-item">
+                                            <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Make</span>
+                                            <strong id="intel-make" style="display: block; font-size: 1.1rem;">—</strong>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Model</span>
+                                            <strong id="intel-model" style="display: block; font-size: 1.1rem;">—</strong>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Year</span>
+                                            <strong id="intel-year" style="display: block; font-size: 1.1rem;">—</strong>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Engine</span>
+                                            <strong id="intel-engine" style="display: block; font-size: 1.1rem;">—</strong>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
+                                        <span style="color:var(--text-dim); font-size:0.85rem;">Lifecycle Odometer</span>
+                                        <strong id="intel-odometer" style="font-size:1.2rem; color:var(--brand-primary); font-family: 'Space Grotesk';">— km</strong>
+                                    </div>
+
+                                    <div style="margin-top:24px; display:flex; gap:12px;">
+                                        <button class="glass-btn primary-glow" style="flex:1;" onclick="triggerManualVinEntry()"><i data-lucide="edit-3"></i> Edit VIN</button>
+                                        <button class="glass-btn" style="flex:1;" id="intel-refresh-btn" onclick="refreshIntelForCurrent()"><i data-lucide="refresh-cw"></i> Sync</button>
                                     </div>
                                 </div>
-                                <div class="matrix-scroll">
-                                    <table class="telemetry-table" id="telemetry-table">
+
+                                <!-- Dynamic VIN Intelligence Card (Rich Data) -->
+                                <div class="premium-card" id="rich-vin-card">
+                                    <div class="section-header" style="padding: 0 0 20px 0; border-bottom: 1px solid var(--border-light);">
+                                        <h3 style="font-size: 1.25rem;"><i data-lucide="database" style="width: 18px; color: var(--brand-primary);"></i> Technical Specifications</h3>
+                                    </div>
+                                    <div id="vin-data-container" class="vin-intel-card">
+                                        <!-- Dynamically injected rich fields -->
+                                        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-dim);">
+                                            <p>Awaiting vehicle synchronization...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div><!-- /intel-grid (row 1) -->
+
+                            <!-- ROW 2: Configuration & Intelligence Profiling (NEW CARD) -->
+                            <div class="intel-grid" style="margin-top:24px; display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 24px;">
+                                
+                                <div class="premium-card config-card">
+                                    <div class="section-header" style="padding-bottom: 16px; border-bottom: 1px solid var(--border-light); margin-bottom: 20px;">
+                                        <h3 style="font-size: 1.1rem;"><i data-lucide="settings" style="width: 16px;"></i> Asset Intelligence Calibration</h3>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                        <div class="input-wrapper" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.65rem; color: var(--text-muted);">Current Assigned VIN</label>
+                                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                                <input type="text" id="intel-config-vin" class="input-field" placeholder="No VIN Assigned" style="font-family: 'Space Grotesk'; font-weight: 600; flex: 1;">
+                                                <button class="icon-btn-small primary-glow" onclick="updateVinFromIntel()"><i data-lucide="check"></i></button>
+                                            </div>
+                                        </div>
+                                        <div class="input-wrapper" style="margin-bottom: 0;">
+                                            <label style="font-size: 0.65rem; color: var(--text-muted);">Calibration Status</label>
+                                            <div style="margin-top: 8px;">
+                                                <span id="intel-profile-status" class="stats-badge success">⚡ ECU Verified</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 24px; padding: 16px; background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--border-accent); border-radius: 12px;">
+                                        <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+                                            <i data-lucide="info" style="width: 14px; margin-right: 4px; vertical-align: middle;"></i>
+                                            Manual VIN calibration overrides automatic OBD detection. Use this to correct discrepancies in manufacturer reporting or to activate predictive maintenance for non-OBD assets.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="premium-card">
+                                    <div class="chart-header">
+                                        <h3 class="chart-title"><i data-lucide="shield-check" style="width: 16px;"></i> Safety Intelligence</h3>
+                                    </div>
+                                    <div style="padding: 2px 20px 20px; display: flex; flex-direction: column; gap: 12px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                            <span style="font-size: 0.85rem;">Overspeed Filter</span>
+                                            <span id="intel-overspeed-count" style="font-family: 'Space Grotesk'; font-weight: 700; color: var(--brand-danger);">0 Events</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                            <span style="font-size: 0.85rem;">Towing Detection</span>
+                                            <span class="stats-badge" style="opacity: 0.5;">Inactive</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- ROW 3: Maintenance & Safety Patterns -->
+                            <div class="intel-grid" style="margin-top:24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                                <div class="premium-card lifecycle-card">
+                                     <div class="chart-header">
+                                        <h3 class="chart-title">Asset Lifecycle & Residual Value</h3>
+                                    </div>
+                                    <div id="intel-depr-no-data" style="display:flex; align-items:center; justify-content:center; height:240px; color:var(--text-dim);">
+                                        Data visualization pending synchronization.
+                                    </div>
+                                    <div class="chart-container" style="height:240px; display:none;" id="intel-depr-chart-wrap">
+                                        <canvas id="lifecycleChart"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <div class="premium-card">
+                                    <div class="chart-header">
+                                        <h3 class="chart-title">AI Maintenance Prediction</h3>
+                                    </div>
+                                    <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+                                        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1); border-radius: 12px; padding: 16px;">
+                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-success); font-weight: 800;">Next Service Window</div>
+                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;">~ 1,450 km Remaining</div>
+                                        </div>
+                                        <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.1); border-radius: 12px; padding: 16px;">
+                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-warning); font-weight: 800;">Brake Pad Life</div>
+                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;">62% Estimated</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div><!-- /intel-main-grid -->
+
+                    </div><!-- /module-content-container -->
+                </div><!-- /view-vehicle-intel -->
+
+
+                <!-- Fuel Analytics View -->
+                <div id="view-fuel" class="sub-view hidden-view">
+                    <div class="module-content-container">
+                        <div class="module-header-row">
+                            <h3 class="section-title">Fuel Intelligence</h3>
+                            <div id="fuel-asset-context" class="stats-badge primary">Global Fleet Summary</div>
+                        </div>
+
+                        <!-- Missing Profile Alert Banner -->
+                        <div id="fuel-profile-alert" class="premium-card alert-banner hidden-view" onclick="openVehicleIntel(selectedVehicle.name)">
+                            <div class="alert-content">
+                                <i data-lucide="alert-triangle"></i>
+                                <div>
+                                    <h4>Telematics Profile Incomplete</h4>
+                                    <p>Click here to enter VIN or Vehicle Model to calibrate fuel accuracy.</p>
+                                </div>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+
+                        <!-- Executive Summary Cards -->
+                        <div class="stats-row">
+                            <div class="premium-card mini-stat primary-glow">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                    <span class="card-label">Live Fuel Price (PKR)</span>
+                                    <span class="stats-badge" id="fuel-sync-badge">Syncing...</span>
+                                </div>
+                                <span class="card-value" id="fuel-live-price">Rs. 0.00</span>
+                                <div class="card-trend" id="fuel-price-source"><i data-lucide="info"></i> OGRA/PSO Scraped</div>
+                            </div>
+                            <div class="premium-card mini-stat">
+                                <span class="card-label">Dynamic Total Cost</span>
+                                <span class="card-value" id="fuel-total-cost">Rs. 0</span>
+                                <div class="card-trend" style="color:var(--brand-primary);"><i data-lucide="trending-up"></i> Real-time Trip Cost</div>
+                            </div>
+                            <div class="premium-card mini-stat">
+                                <span class="card-label">Brand Loyalty</span>
+                                <span class="card-value" id="fuel-loyalty-brand">-</span>
+                                <div class="card-trend" id="fuel-visits-count"><i data-lucide="map-pin"></i> 0 Visits This Month</div>
+                            </div>
+                            <div class="premium-card mini-stat">
+                                <span class="card-label">Fuel Status</span>
+                                <span class="card-value" id="fuel-live-level">--%</span>
+                                <div class="card-trend" id="fuel-method-badge"><i data-lucide="gauge"></i> Awaiting data</div>
+                                <div style="margin-top:8px;">
+                                    <span class="stats-badge" id="fuel-efficiency-validation">Eco Validation: --</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="charts-grid-equal">
+                            <div class="premium-card">
+                                <div class="chart-header">
+                                    <h3 class="chart-title">Fuel Consumption vs. Distance</h3>
+                                    <div class="stats-badge success" id="efficiency-badge">⚡ ECU Verified</div>
+                                </div>
+                                <div class="chart-container"><canvas id="fuelConsumptionChart"></canvas></div>
+                            </div>
+                            <div class="premium-card">
+                                <h3 class="chart-title">Fuel Drain & Refill Timeline</h3>
+                                <div class="chart-container"><canvas id="fuelTimelineChart"></canvas></div>
+                            </div>
+                        </div>
+
+                        <!-- Fuel Station Logs -->
+                        <div class="premium-card section-card" style="margin-top:24px;">
+                            <div class="section-header">
+                                <h3 class="section-title">Fuel Station Geofence & Visit Logs</h3>
+                                <span class="stats-badge" id="station-log-count">0 Records</span>
+                            </div>
+                            <div style="padding: 0 60px 40px;">
+                                <table class="premium-table" id="fuel-station-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Station Brand & Branch</th>
+                                            <th>Duration</th>
+                                            <th>Liters Added</th>
+                                            <th>Cost Impact (PKR)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fuel-station-body">
+                                        <!-- Logs injected here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Anti-Fraud & Behavior -->
+                        <div class="charts-grid-equal" style="margin-top:24px;">
+                            <div class="premium-card safety-score-card">
+                                <h3 class="chart-title">Eco-Score Ring</h3>
+                                <div class="score-display">
+                                    <div class="score-circle">
+                                        <svg viewBox="0 0 36 36" class="circular-chart">
+                                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <path class="circle eco-circle" stroke-dasharray="92, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <text x="18" y="20.35" class="percentage" id="eco-score-val">92</text>
+                                        </svg>
+                                    </div>
+                                    <div class="score-label">Fuel Efficiency Grade: <strong>A+</strong></div>
+                                </div>
+                            </div>
+                            <div class="premium-card">
+                                <h3 class="chart-title">Receipt Cross-Verification</h3>
+                                <div class="upload-container" id="receipt-upload">
+                                    <i data-lucide="upload-cloud" style="width:48px; height:48px; color:var(--brand-primary); margin-bottom:16px;"></i>
+                                    <p>Drag & drop fuel receipts here</p>
+                                    <small>Verify manual costs against telematics logs</small>
+                                    <button class="glass-btn primary-glow" style="margin-top:16px;">Browse Files</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trip Costing + Theft Detection -->
+                        <div class="charts-grid-equal" style="margin-top:24px;">
+                            <div class="premium-card section-card">
+                                <div class="section-header" style="padding:20px 24px;">
+                                    <h3 class="section-title">Trip Cost Breakdown</h3>
+                                    <span class="stats-badge primary" id="trip-cost-count">0 Trips</span>
+                                </div>
+                                <div style="padding: 0 24px 24px;">
+                                    <table class="premium-table" id="trip-cost-table">
                                         <thead>
                                             <tr>
-                                                <th><i data-lucide="truck" style="width:12px;height:12px;"></i> Vehicle</th>
-                                                <th>VIN Details</th>
-                                                <th>Speed</th>
-                                                <th>Fuel</th>
-                                                <th>Status</th>
+                                                <th>Trip Window</th>
+                                                <th>Distance</th>
+                                                <th>Fuel Used</th>
+                                                <th>Cost (PKR)</th>
                                             </tr>
                                         </thead>
-                                        <tbody id="telemetry-body"></tbody>
+                                        <tbody id="trip-cost-body">
+                                            <tr><td colspan="4" style="text-align:center; padding:28px;">No trip data available yet.</td></tr>
+                                        </tbody>
                                     </table>
                                 </div>
                             </div>
-
-                            <div class="widget-card events-widget">
-                                <div class="widget-header">
-                                    <h3 class="widget-title"><i data-lucide="shield-alert"></i> Operations Feed</h3>
-                                    <span class="event-count-badge" id="event-count-badge">0 events</span>
+                            <div class="premium-card section-card">
+                                <div class="section-header" style="padding:20px 24px;">
+                                    <h3 class="section-title">Smart Fuel Theft Detection</h3>
+                                    <span class="stats-badge danger" id="fuel-theft-count">0 Alerts</span>
                                 </div>
-                                <div class="events-scroll" id="recent-events-list"></div>
+                                <div id="fuel-theft-list" style="padding: 0 24px 24px; display:flex; flex-direction:column; gap:10px;">
+                                    <div class="stats-badge success" style="padding:10px 12px; width:fit-content;">No suspicious drops detected.</div>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- ⑤ System Health Footer -->
-                        <div class="system-meta-strip">
-                            <div class="meta-item">
-                                <i data-lucide="database"></i><span>DB: Online</span>
-                            </div>
-                            <div class="meta-item">
-                                <i data-lucide="cpu"></i><span>AI Core: Active</span>
-                            </div>
-                            <div class="meta-item">
-                                <i data-lucide="clock"></i>
-                                <span>Last Sync: <span id="health-time">--</span></span>
-                            </div>
-                            <div class="meta-item" style="margin-left:auto;">
-                                <i data-lucide="route"></i><span id="hdr-distance">—</span>
-                            </div>
-                            <div class="meta-item">
-                                <i data-lucide="fuel"></i><span id="hdr-fuel-saved">—</span>
-                            </div>
-                            <div class="meta-item">
-                                <i data-lucide="leaf"></i><span id="hdr-co2">—</span>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
 
-            </main>
+                <!-- Driver Safety View -->
+                <div id="view-safety" class="sub-view hidden-view">
+                    <div class="module-content-container">
+                        <div class="module-header-row">
+                            <h3 class="section-title">Safety & Behavior</h3>
+                            <div id="safety-asset-context" class="stats-badge warning">Global Fleet Summary</div>
+                        </div>
+                        <div class="safety-dashboard-grid">
+                            <div class="premium-card safety-score-card">
+                                <h3 class="chart-title">AI Safety Scorecard</h3>
+                                <div class="score-display">
+                                    <div class="score-circle">
+                                        <svg viewBox="0 0 36 36" class="circular-chart">
+                                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <path class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <text x="18" y="20.35" class="percentage">85</text>
+                                        </svg>
+                                    </div>
+                                    <div class="score-label">Fleet Safety Grade: <strong>A-</strong></div>
+                                </div>
+                                <div class="radar-chart-container">
+                                    <canvas id="safetyRadarChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="premium-card incident-card">
+                                <h3 class="chart-title">Harsh Events Timeline</h3>
+                                <div class="timeline-container" id="safety-timeline">
+                                    <!-- Timeline events -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance View -->
+                <div id="view-maintenance" class="sub-view hidden-view">
+                    <div class="module-content-container">
+                        <div class="module-header-row">
+                            <h3 class="section-title">Maintenance Center</h3>
+                            <div id="maint-asset-context" class="stats-badge success">Global Fleet Summary</div>
+                        </div>
+                        <div class="maintenance-grid">
+                            <div class="premium-card maintenance-list">
+                                <div class="section-header">
+                                    <h3 class="chart-title">Active Diagnostics (DTC)</h3>
+                                    <span class="stats-badge danger">3 Critical</span>
+                                </div>
+                                <div class="dtc-list" id="active-dtc-list">
+                                    <!-- DTC codes injected here -->
+                                </div>
+                            </div>
+                            
+                            <div class="premium-card forecasting-card">
+                                <h3 class="chart-title">Maintenance Forecasting</h3>
+                                <div class="forecast-timeline" id="maintenance-forecast">
+                                    <!-- Forecast items -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map View -->
+                <div id="view-map" class="sub-view hidden-view">
+                    <div class="map-layout">
+                        <!-- Vehicle Sidebar -->
+                        <div class="map-sidebar" id="map-asset-sidebar">
+                            <div class="floating-toggle-btn" id="toggle-map-sidebar" title="Toggle Fleet Sidebar">
+                                <i data-lucide="chevron-left"></i>
+                            </div>
+                            <div class="sidebar-header">
+                                <h2><span class="live-dot-pulse"></span> Live Fleet</h2>
+                            </div>
+                            <div class="sidebar-search">
+                                <div class="sidebar-search-wrap">
+                                    <i data-lucide="search"></i>
+                                    <input type="text" id="map-vehicle-search" placeholder="Search vehicles or ID...">
+                                </div>
+                            </div>
+                            <div class="map-vehicle-list" id="map-vehicle-list">
+                                <!-- Vehicles will be injected here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Map Container -->
+                        <div class="map-container-wrap">
+                            <div id="live-map"></div>
+                            
+                            <!-- Premium Map Controls -->
+                            <div class="map-controls-group">
+                                <div class="map-glass-panel">
+                                    <div class="layer-switcher-compact">
+                                        <button class="layer-toggle-btn active" id="btn-layer-dark">Dark</button>
+                                        <button class="layer-toggle-btn" id="btn-layer-light">Light</button>
+                                        <button class="layer-toggle-btn" id="btn-layer-satellite">Satellite</button>
+                                    </div>
+                                </div>
+                                <div class="map-glass-panel" style="padding: 2px;">
+                                    <button class="layer-toggle-btn" id="btn-center-vehicle" title="Center on selected" style="width: 100%;"><i data-lucide="crosshair" style="width: 16px;"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Debug Overlay -->
+                            <div class="map-debug-panel">
+                                <div style="margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; color: var(--brand-primary); font-weight: 800;">MAP ENGINE STATUS</div>
+                                <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Vehicles:</span> <span id="dbg-total">0</span></div>
+                                <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Active Markers:</span> <span id="dbg-markers">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Vehicle Modal -->
+                <div id="vehicle-details-modal" class="modal-overlay hidden-view">
+                    <div class="premium-card details-modal-content">
+                        <div class="modal-header">
+                            <div style="display:flex; align-items:center; gap:16px;">
+                                <div class="vehicle-avatar-large" id="det-avatar" style="width:40px; height:40px; font-size:1.2rem;">
+                                    <i data-lucide="truck"></i>
+                                </div>
+                                <div>
+                                    <h3 id="det-name">Vehicle Name</h3>
+                                    <p id="det-uid" style="font-size:0.75rem; color:var(--text-dim);">Device ID</p>
+                                </div>
+                            </div>
+                            <button class="icon-btn-small" onclick="closeDetailsModal()"><i data-lucide="x"></i></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Amber Warning Banner Component -->
+                            <div id="vinWarningBanner" class="vin-warning-banner vin-hidden" onclick="triggerManualVinEntry()">
+                              <span class="vin-warning-icon">⚠️</span>
+                              <span class="vin-warning-text">Vehicle Profile Incomplete — Add VIN to activate dynamic fuel costing and diagnostics.</span>
+                            </div>
+                            <div class="details-grid">
+                                <!-- Section 1: Basic Info -->
+                                <div class="details-section">
+                                    <div class="section-title"><i data-lucide="info"></i> Basic Information</div>
+                                    <div class="info-row-grid">
+                                        <div class="info-field">
+                                            <label>VIN <button onclick="triggerManualVinEntry()" title="Edit/Add VIN manually for wired devices" style="background:none;border:none;cursor:pointer;padding:0;margin-left:8px;color:var(--brand-primary);"><i data-lucide="edit-3" style="width:12px;"></i></button></label>
+                                            <span id="det-vin">N/A</span>
+                                        </div>
+                                        <div class="info-field"><label>Model</label><span id="det-model">N/A</span></div>
+                                        <div class="info-field"><label>Category</label><span id="det-category">N/A</span></div>
+                                        <div class="info-field"><label>Group</label><span id="det-group">N/A</span></div>
+                                        <div class="info-field"><label>Driver</label><span id="det-driver">N/A</span></div>
+                                        <div class="info-field"><label>Phone</label><span id="det-phone">N/A</span></div>
+                                    </div>
+                                </div>
+                                <!-- Section 2: Live Telemetry -->
+                                <div class="details-section">
+                                    <div class="section-title"><i data-lucide="zap"></i> Live Telemetry</div>
+                                    <div class="info-row-grid">
+                                        <div class="info-field"><label>Speed</label><span id="det-speed">0 km/h</span></div>
+                                        <div class="info-field"><label>Ignition</label><span id="det-ignition">OFF</span></div>
+                                        <div class="info-field"><label>Fuel Level</label><span id="det-fuel">N/A</span></div>
+                                        <div class="info-field"><label>Odometer</label><span id="det-odometer">0 km</span></div>
+                                        <div class="info-field"><label>Altitude</label><span id="det-altitude">0 m</span></div>
+                                        <div class="info-field"><label>Course</label><span id="det-course">0°</span></div>
+                                    </div>
+                                </div>
+                                <!-- Section 3: Status & Health -->
+                                <div class="details-section">
+                                    <div class="section-title"><i data-lucide="activity"></i> Status & Health</div>
+                                    <div class="info-row-grid">
+                                        <div class="info-field"><label>GPS Status</label><span id="det-gps">Checking...</span></div>
+                                        <div class="info-field"><label>GSM Signal</label><span id="det-gsm">Checking...</span></div>
+                                        <div class="info-field"><label>Battery Voltage</label><span id="det-voltage">N/A</span></div>
+                                        <div class="info-field"><label>Last Update</label><span id="det-last-update">N/A</span></div>
+                                    </div>
+                                </div>
+                                <!-- Section 4: Quick Actions -->
+                                <div class="details-section">
+                                    <div class="section-title"><i data-lucide="command"></i> Quick Actions</div>
+                                    <div class="action-grid">
+                                        <div class="action-card-btn" onclick="showNotification('History loading...', 'info')">
+                                            <i data-lucide="history"></i><span>History</span>
+                                        </div>
+                                        <div class="action-card-btn" onclick="showNotification('Command center loading...', 'info')">
+                                            <i data-lucide="send"></i><span>Command</span>
+                                        </div>
+                                        <div class="action-card-btn" onclick="closeDetailsModal(); focusVehicleOnMap()">
+                                            <i data-lucide="map-pin"></i><span>Focus Map</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Vehicle Modal -->
+                <div id="edit-vehicle-modal" class="modal-overlay hidden-view">
+                    <div class="premium-card details-modal-content" style="max-width: 600px;">
+                        <div class="modal-header" style="border-bottom: 1px solid var(--border-light); padding-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div class="bot-avatar-glow"><div class="bot-avatar"><i data-lucide="edit-3"></i></div></div>
+                                <h3>Modify Asset Intelligence</h3>
+                            </div>
+                            <button class="icon-btn-small" onclick="closeEditModal()"><i data-lucide="x"></i></button>
+                        </div>
+                        <form id="edit-vehicle-form" class="modal-body" style="padding: 24px 0;">
+                            <input type="hidden" id="edit-vehicle-id">
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div class="input-wrapper">
+                                    <label>Vehicle Label</label>
+                                    <input type="text" id="edit-vehicle-name" class="input-field" required>
+                                </div>
+                                <div class="input-wrapper">
+                                    <label>Device ID (IMEI)</label>
+                                    <input type="text" id="edit-vehicle-uid" class="input-field" required>
+                                </div>
+                                <div class="input-wrapper">
+                                    <label>VIN (17 chars)</label>
+                                    <input type="text" id="edit-vehicle-vin" class="input-field">
+                                </div>
+                                <div class="input-wrapper">
+                                    <label>Market Model</label>
+                                    <input type="text" id="edit-vehicle-model" class="input-field">
+                                </div>
+                                <div class="input-wrapper">
+                                    <label>Asset Class</label>
+                                    <select id="edit-vehicle-category" class="input-field">
+                                        <option value="car">Passenger Car</option>
+                                        <option value="truck">Commercial Truck</option>
+                                        <option value="bus">Public Transport (Bus)</option>
+                                        <option value="motorcycle">Two-Wheeler</option>
+                                        <option value="van">Light Van</option>
+                                        <option value="other">Special Utility</option>
+                                    </select>
+                                </div>
+                                <div class="input-wrapper">
+                                    <label>Operator Name</label>
+                                    <input type="text" id="edit-vehicle-contact" class="input-field">
+                                </div>
+                            </div>
+                            <div class="modal-footer" style="display: flex; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-light);">
+                                <button type="button" class="glass-btn" style="flex: 1;" onclick="closeEditModal()">Discard</button>
+                                <button type="submit" class="auth-btn" style="flex: 2;">Commit Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            
+            <!-- VIN Analysis Result Modal (Global Lookup) Centered -->
+            <div id="vin-analysis-modal" class="modal-overlay hidden-view vin-analysis-modal">
+                <div class="premium-card details-modal-content vin-analysis-dialog">
+                    <div class="modal-header vin-analysis-header">
+                        <div class="vin-analysis-heading">
+                            <div class="bot-avatar-glow"><div class="bot-avatar"><i data-lucide="search"></i></div></div>
+                            <div>
+                                <h3 id="analysis-modal-title">Global Intelligence Report</h3>
+                                <code id="analysis-modal-vin" class="vin-analysis-code"></code>
+                            </div>
+                        </div>
+                        <button class="icon-btn-small" onclick="closeVinAnalysisModal()"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="modal-body vin-analysis-body">
+                        <div id="vin-analysis-details" class="vin-intel-card">
+                            <!-- Dynamic specs here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer vin-analysis-footer">
+                        <button class="glass-btn" onclick="closeVinAnalysisModal()">Discard</button>
+                        <button class="auth-btn" id="pin-vin-btn">
+                            <i data-lucide="plus"></i> Add to Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual VIN Configuration Modal -->
+            <div id="vinEntryOverlay" class="modal-overlay hidden-view" style="display: none; align-items: center; justify-content: center; z-index: 10000; background: rgba(0,0,0,0.5); position: fixed; inset: 0;">
+                <div id="vinEntryContainer" class="vin-entry-card" style="display: block;">
+                  <div class="vin-entry-header">
+                    <div class="vin-entry-title">Manual VIN Configuration</div>
+                    <button class="vin-entry-close" onclick="closeVinModal()">&times;</button>
+                  </div>
+                  <div class="vin-input-group">
+                    <label class="vin-input-label" for="vinInput">17-Character Vehicle Identification Number</label>
+                    <input type="text" id="vinInput" class="vin-input" placeholder="e.g. 1HGCM82633A004..." maxlength="17" autocomplete="off" spellcheck="false" />
+                    <div id="vinErrorMsg" class="vin-error-msg"></div>
+                  </div>
+                  <button id="vinSubmitBtn" class="vin-submit-btn" onclick="submitManualVIN()" disabled>Save Profiling Data</button>
+                </div>
+            </div>
         </div>
+
+        <!-- Floating Chatbot -->
+        <div class="chat-trigger-btn" id="chat-trigger">
+            <div class="chat-trigger-icon"><i data-lucide="sparkles"></i></div>
+            <span>AI Assistant</span>
+        </div>
+
+        <aside class="chat-panel collapsed" id="chat-panel">
+            <header class="chat-panel-header">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="bot-avatar-glow">
+                        <div class="bot-avatar"><i data-lucide="bot"></i></div>
+                        <span class="status-indicator online" style="position:absolute; bottom:-2px; right:-2px; border:2px solid var(--bg-sidebar);"></span>
+                    </div>
+                    <div>
+                        <p class="bot-name">AI - Telemetrix</p>
+                        <span class="online-tag">System Intelligence Active</span>
+                    </div>
+                </div>
+                <div class="chat-actions">
+                    <button id="toggle-chat-history" class="header-action-btn" title="Toggle History"><i data-lucide="history"></i></button>
+                    <button id="fullscreen-chat" class="header-action-btn" title="Fullscreen"><i data-lucide="maximize-2"></i></button>
+                    <button id="close-chat-panel" class="header-action-btn close" title="Close"><i data-lucide="x"></i></button>
+                </div>
+            </header>
+
+            <div class="chat-body">
+                <!-- History Sidebar (Collapsible) -->
+                <div class="chat-history-sidebar" id="chat-history-sidebar">
+                    <div class="history-header">
+                        <span>Conversations</span>
+                        <button id="new-chat-btn" class="icon-btn-small" title="New Chat"><i data-lucide="plus"></i></button>
+                    </div>
+                    <div class="history-search">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="history-search-input" placeholder="Search chats...">
+                    </div>
+                    <div class="history-list" id="history-list">
+                        <!-- History items injected here -->
+                        <div class="history-empty">No previous chats</div>
+                    </div>
+                </div>
+
+                <!-- Main Chat Area -->
+                <div class="chat-main">
+                    <div class="chat-messages-area" id="chat-messages"></div>
+                    
+                    <div class="chat-input-section">
+                        <div class="typing-indicator" id="typing-indicator" style="display: none;">
+                            <span></span><span></span><span></span>
+                            AI is thinking...
+                        </div>
+                        <div class="chat-input-wrapper">
+                            <button class="attachment-btn"><i data-lucide="paperclip"></i></button>
+                            <input type="text" id="user-input" placeholder="Ask about your fleet intelligence...">
+                            <button id="send-btn" class="send-action-btn"><i data-lucide="send"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
     </div>
-    <script src="/static/script.js"></script>
+
+    <script src="/static/script.js?v=6.8" defer></script>
 </body>
 </html>

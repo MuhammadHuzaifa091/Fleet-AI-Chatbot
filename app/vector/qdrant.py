@@ -16,15 +16,14 @@ class QdrantService:
             )
             # Test connection immediately
             self.client.get_collections()
-            print(f"✅ Connected to Qdrant server at {settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
+            print(f"Connected to Qdrant server at {settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
         except Exception as e:
-            print(f"⚠️ Failed to connect to Qdrant server: {e}")
-            print("🚀 Falling back to Qdrant Local Mode (In-memory/Disk)")
+            print(f"Failed to connect to Qdrant server: {e}")
+            print("Falling back to Qdrant Local Mode (In-memory/Disk)")
             # Path for local storage
             import os
-            storage_path = os.path.join(os.getcwd(), "storage", "qdrant")
-            os.makedirs(os.path.dirname(storage_path), exist_ok=True)
-            self.client = QdrantClient(path=storage_path)
+            self.client = QdrantClient(location=":memory:")
+
             
         self.collection_name = "fleet_intelligence"
         self._ensure_collection()

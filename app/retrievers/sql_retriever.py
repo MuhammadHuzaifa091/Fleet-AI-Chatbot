@@ -11,80 +11,70 @@ class SQLRetriever:
 
     def _apply_rbac(self, query):
         """Applies Role-Based Access Control to SQLAlchemy queries"""
-        if self.current_user["role"] == "SUPERADMIN":
+        if self.current_user.get("role") in ["SUPERADMIN", "ADMIN"]:
             return query
             
-        elif self.current_user["role"] == "ADMIN":
-            # For simplicity, if Admin has specific groups, we would filter by groupid here
-            # Assuming ADMIN means full org access but not super admin. 
-            pass # Apply org/group filters in real impl
-            
-        # USER -> strict tc_user_device filter
+        # USER: strict tc_user_device filter
         return query.join(UserDevice, UserDevice.deviceid == Device.id).where(UserDevice.userid == self.current_user["id"])
 
-    async def get_live_vehicles(self) -> List[Dict[str, Any]]:
-        query = select(Device, Position).join(Position, Device.positionid == Position.id).where(Device.disabled == False)
-        query = self._apply_rbac(query)
+    async def get_live_vehicles(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        # LEFT JOIN: show vehicles even without a position record
+        query = select(Device, Position).outerjoin(Position, Device.positionid == Position.id).where(Device.disabled == False)
+        query = self._apply_rbac(query).limit(limit)
         
         result = await self.db.execute(query)
         data = []
         
-        def decode_vin_demo(vin: str) -> Dict[str, str]:
-            if not vin or len(vin) < 3: return {"make": "Unknown", "model": "Generic", "year": "N/A"}
-            wmi = vin[:3].upper()
-            make_map = {"1HG": "Honda", "1NX": "Toyota", "1VW": "Volkswagen", "3FA": "Ford", "WAU": "Audi", "WBA": "BMW", "1G1": "Chevrolet", "KM8": "Hyundai", "WP0": "Porsche", "JHM": "Honda"}
-            make = make_map.get(wmi, "Toyota") # Fallback to Toyota
-            model_map = {"Honda": "Civic", "Toyota": "Corolla", "Volkswagen": "Golf", "Ford": "F-150", "Audi": "A4", "BMW": "3 Series", "Chevrolet": "Silverado", "Hyundai": "Tucson", "Porsche": "911"}
-            model = model_map.get(make, "Standard")
-            
-            # 10th char generally indicates year
-            year_char = vin[9] if len(vin) >= 10 else "N"
-            year = "2022" if year_char.isalpha() else "2019"
-            
-            return {"make": make, "model": model, "year": year}
-            
-        import hashlib
-        
         for device, position in result.all():
             dev_attr = device.attributes or {}
-            pos_attr = position.attributes or {}
+            pos_attr = position.attributes if position else {}
             
-            # Attempt to extract VIN
-            vin = pos_attr.get("vin") or dev_attr.get("vin") or pos_attr.get("vehicleId")
+            # --- REAL DATA ONLY --- no mocks, no fake calculations ---
             
-            # For demonstration, if no real VIN is available, generate a consistent one based on ID
-            is_mock_vin = False
-            if not vin:
-                is_mock_vin = True
-                hashed = hashlib.md5(str(device.id).encode()).hexdigest().upper()
-                wmi_choices = ["1HG", "1NX", "1VW", "3FA", "WAU", "WBA"]
-                wmi = wmi_choices[device.id % len(wmi_choices)]
-                vin = f"{wmi}{hashed[:5]}{device.id % 9}{hashed[-5:]}Z"
-            
-            decoded = decode_vin_demo(vin)
-            
+            # VIN: native DB column has priority over attributes
+            vin        = getattr(device, 'vin', None) or pos_attr.get("vin") or dev_attr.get("vin") or pos_attr.get("vehicleId") or None
+            vin_source = getattr(device, 'vin_source', None)  # 'obd' | 'manual' | None
+
+            # Fuel: only real sensor data, None if not available
+            fuel_level = pos_attr.get("fuelLevel") or pos_attr.get("fuel") or None
+
+            # Battery: only real sensor data
+            battery = pos_attr.get("battery") or pos_attr.get("batteryLevel") or pos_attr.get("power") or None
+
             data.append({
-                "id": device.id,
-                "name": device.name,
-                "uniqueId": device.uniqueid,
-                "status": device.status,
-                "lastUpdate": device.lastupdate,
-                "latitude": position.latitude,
-                "longitude": position.longitude,
-                "speed": position.speed,
-                "address": position.address,
-                "attributes": pos_attr,
+                "id":            device.id,
+                "name":          device.name,
+                "uniqueId":      device.uniqueid,
+                "status":        device.status,
+                "lastUpdate":    device.lastupdate,
+                "groupId":       device.groupid,
+                "category":      device.category,
+                "model":         getattr(device, 'model', None) or dev_attr.get("model") or None,
+                "contact":       device.contact,
+                "phone":         device.phone,
+                "latitude":      position.latitude  if position else None,
+                "longitude":     position.longitude if position else None,
+                "altitude":      position.altitude  if position else None,
+                "speed":         position.speed     if position else 0,
+                "course":        position.course    if position else 0,
+                "address":       position.address   if position else None,
+                "protocol":      position.protocol  if position else None,
+                "valid":         position.valid      if position else False,
+                "attributes":    pos_attr,
                 "device_attributes": dev_attr,
-                "vin": vin,
-                "vin_mocked": is_mock_vin,
-                "make": decoded["make"],
-                "model": decoded["model"],
-                "year": decoded["year"]
+                "vin":           vin,
+                "vin_source":    vin_source,
+                "fuelLevel":     fuel_level,
+                "batteryLevel":  battery,
+                "make":          getattr(device, 'manufacturer', None) or dev_attr.get("make") or None,
+                "year":          getattr(device, 'year', None) or dev_attr.get("year") or None,
             })
         return data
 
+
     async def get_vehicle_by_name(self, name: str) -> Optional[Dict[str, Any]]:
-        query = select(Device, Position).join(Position, Device.positionid == Position.id).where(Device.name.ilike(f"%{name}%"))
+        query = select(Device, Position).outerjoin(Position, Device.positionid == Position.id).where(Device.name.ilike(f"%{name}%"))
+        query = self._apply_rbac(query)
         result = await self.db.execute(query)
         row = result.first()
         if row:
@@ -94,10 +84,10 @@ class SQLRetriever:
                 "name": device.name,
                 "uniqueId": device.uniqueid,
                 "status": device.status,
-                "latitude": position.latitude,
-                "longitude": position.longitude,
-                "speed": position.speed,
-                "attributes": position.attributes
+                "latitude": position.latitude if position else 0,
+                "longitude": position.longitude if position else 0,
+                "speed": position.speed if position else 0,
+                "attributes": position.attributes if position else {}
             }
         return None
 
@@ -105,10 +95,14 @@ class SQLRetriever:
         since = datetime.utcnow() - timedelta(days=days)
         query = select(Event, Device).join(Device, Event.deviceid == Device.id).where(
             Event.type == "deviceOverspeed",
-            Event.servertime >= since
+            Event.eventtime >= since
         )
+        # Apply RBAC to events via device relationship
+        if self.current_user["role"] != "SUPERADMIN":
+             query = query.join(UserDevice, UserDevice.deviceid == Device.id).where(UserDevice.userid == self.current_user["id"])
+             
         result = await self.db.execute(query)
-        return [{"device": row.Device.name, "time": row.Event.servertime, "attributes": row.Event.attributes} for row in result.all()]
+        return [{"device": row.Device.name, "time": row.Event.eventtime, "attributes": row.Event.attributes} for row in result.all()]
 
     async def get_maintenance_status(self) -> List[Dict[str, Any]]:
         query = select(Maintenance)
@@ -118,3 +112,37 @@ class SQLRetriever:
     async def execute_custom_query(self, query_str: str) -> List[Dict[str, Any]]:
         result = await self.db.execute(text(query_str))
         return [dict(row) for row in result.mappings().all()]
+
+    async def update_vehicle(self, device_id: int, data: Dict[str, Any]) -> bool:
+        """Updates vehicle details in tc_devices"""
+        query = select(Device).where(Device.id == device_id)
+        query = self._apply_rbac(query)
+        result = await self.db.execute(query)
+        device = result.scalar_one_or_none()
+        
+        if not device:
+            return False
+            
+        # Update allowed fields
+        if "name" in data: device.name = data["name"]
+        if "uniqueid" in data: device.uniqueid = data["uniqueid"]
+        if "vin" in data: 
+            # VIN might be in attributes or a separate column if we added it
+            # Traccar usually stores it in attributes, but we can store it in attributes here
+            current_attr = device.attributes or {}
+            current_attr["vin"] = data["vin"]
+            device.attributes = current_attr
+        if "model" in data: device.model = data["model"]
+        if "category" in data: device.category = data["category"]
+        if "groupId" in data: device.groupid = data["groupId"]
+        if "contact" in data: device.contact = data["contact"]
+        if "phone" in data: device.phone = data["phone"]
+        
+        # Merge attributes if provided
+        if "attributes" in data:
+            current_attr = device.attributes or {}
+            current_attr.update(data["attributes"])
+            device.attributes = current_attr
+            
+        await self.db.commit()
+        return True

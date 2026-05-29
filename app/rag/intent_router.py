@@ -24,6 +24,8 @@ class IntentRouter:
             {"role": "user", "content": self.prompt_template.format(query=query)}
         ]
         response = await deepseek_client.chat_completion(messages, temperature=0)
+        if not response or not response.choices:
+            return {"intent": "HYBRID", "reasoning": "LLM returned no response", "extracted_params": {}}
         content = response.choices[0].message.content
         # Basic JSON extraction (DeepSeek might return markdown)
         if "```json" in content:

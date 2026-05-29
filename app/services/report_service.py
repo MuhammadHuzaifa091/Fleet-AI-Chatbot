@@ -33,7 +33,7 @@ class ReportService:
         elements = []
 
         # 1. Header
-        elements.append(Paragraph("FleetAI Intelligence Report", title_style))
+        elements.append(Paragraph("AI - Telemetrix Intelligence Report", title_style))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
         elements.append(Spacer(1, 12))
 

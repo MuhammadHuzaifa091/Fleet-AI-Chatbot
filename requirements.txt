@@ -19,3 +19,6 @@ numpy
 jinja2
 python-dotenv
 pyyaml
+PyJWT
+pymysql
+apscheduler>=3.10.0

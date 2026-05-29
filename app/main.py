@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException # Reload Trigger
+from fastapi import FastAPI, Depends, HTTPException # Reload Trigger 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,6 +8,7 @@ from app.api.vehicles import router as vehicles_router
 from app.api.telemetry import router as telemetry_router
 from app.api.embeddings import router as embeddings_router
 from app.api.stats import router as stats_router
+from app.api.traccar_webhooks import router as traccar_webhooks_router
 from app.api.analytics import router as analytics_router
 from app.api.proxy import router as proxy_router
 from app.core.config import settings
@@ -61,6 +62,7 @@ app.include_router(telemetry_router, prefix="/api/v1/telemetry", tags=["Telemetr
 app.include_router(embeddings_router, prefix="/api/v1/embeddings", tags=["Embeddings"])
 app.include_router(stats_router, prefix="/api/v1/stats", tags=["Stats"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(traccar_webhooks_router, prefix="/api/traccar/webhook", tags=["Webhooks"])
 app.include_router(proxy_router, prefix="/api/traccar", tags=["Traccar Proxy"])
 
 if __name__ == "__main__":

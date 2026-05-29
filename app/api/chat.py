@@ -22,11 +22,24 @@ class ChatResponse(BaseModel):
     intent: str
     context_sources: Optional[List[str]] = None
 
+@router.get("/history")
+async def get_chat_history(
+    session_id: str = Query(...),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    try:
+        # Security: Use user email as part of history key to ensure isolation
+        user_history_id = f"{current_user['email']}:{session_id}"
+        history = await redis_memory.get_history(user_history_id)
+        return {"history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/", response_model=ChatResponse)
 @limiter.limit("5/minute")
 async def chat_endpoint(
-    request: ChatRequest,
-    req: Request,
+    request: Request,
+    chat_request: ChatRequest = Body(...),
     db: AsyncSession = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -34,16 +47,17 @@ async def chat_endpoint(
         # Add current timestamp to user context for time-aware queries
         current_user["now"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 1. Get History
-        history = await redis_memory.get_history(request.session_id)
+        # 1. Get History (isolated per user)
+        user_history_id = f"{current_user['email']}:{chat_request.session_id}"
+        history = await redis_memory.get_history(user_history_id)
         
         # 2. Run Pipeline
         pipeline = RAGPipeline(db, current_user)
-        result = await pipeline.process_query(request.query, history)
+        result = await pipeline.process_query(chat_request.query, history)
         
         # 3. Save to History
-        await redis_memory.add_message(request.session_id, "user", request.query)
-        await redis_memory.add_message(request.session_id, "assistant", result["answer"])
+        await redis_memory.add_message(user_history_id, "user", chat_request.query)
+        await redis_memory.add_message(user_history_id, "assistant", result["answer"])
         
         return ChatResponse(
             answer=result["answer"],
@@ -51,4 +65,6 @@ async def chat_endpoint(
             context_sources=result.get("context_sources", [])
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

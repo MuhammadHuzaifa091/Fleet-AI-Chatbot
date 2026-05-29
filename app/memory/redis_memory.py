@@ -14,7 +14,9 @@ class RedisMemory:
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 password=settings.REDIS_PASSWORD,
-                decode_responses=True
+                decode_responses=True,
+                socket_timeout=1.0,
+                socket_connect_timeout=1.0
             )
             # We will test connection on first call to avoid blocking init
         except Exception as e:

@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # App Settings
-    PROJECT_NAME: str = "Fleet Intelligence RAG Platform"
+    PROJECT_NAME: str = "AI_Telemetrix"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
 
@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
     TRACCAR_URL: str = "http://localhost:8082"
+    PROD_NETWORK_PATH: Optional[str] = None
+
+    # PC12 (MASTER) Traccar REST API — used by auto-sync (read-only)
+    PC12_API_URL: str = "http://202.141.246.12:8082"
+    PC12_API_USER: str = "admin"
+    PC12_API_PASS: str = "admin"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
