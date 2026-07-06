@@ -64,7 +64,7 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     result = await db.execute(query)
     if result.scalar_one_or_none():
         logger.warning(f"Registration failed: User {user_in.email} already exists")
-        raise HTTPException(status_code=400, detail="User already registered in Telemetrix")
+        raise HTTPException(status_code=400, detail="User already registered in AI-Telematics")
 
     # 2. Sync to Traccar
     try:
@@ -97,8 +97,6 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
             jsessionid = login_resp.cookies.get("JSESSIONID")
             
             # 4. Save/Update in local DB
-            # We wait a bit for Traccar to sync to its own DB if it's external, 
-            # though usually it's immediate.
             import asyncio
             user = None
             for _ in range(5): 
@@ -109,8 +107,6 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
                 await asyncio.sleep(1)
             
             if not user:
-                # If Traccar DB sync is slow, create it manually in local session if we share DB
-                # But if we share DB, Traccar already created it.
                 logger.warning(f"Local user record not found yet for {user_in.email}, creating placeholder")
                 user = User(id=traccar_user["id"], email=user_in.email, name=user_in.name)
                 db.add(user)
@@ -123,7 +119,7 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
                 user.attributes = attrs
                 await db.commit()
             
-            # Create Telemetrix token
+            # Create AI-Telematics token
             access_token = create_access_token(data={"sub": user.email, "role": "USER"})
             return {"access_token": access_token, "token_type": "bearer", "role": "USER", "name": user.name}
 
@@ -137,13 +133,14 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     username = form_data.username.strip().lower()
     password = form_data.password
-    logger.info(f"Login attempt for: '{username}'")
+    logger.info(f"[LOGIN_ATTEMPT] Username: '{username}'")
     
     # 0. Demo Backdoors
     if username in DEMO_ACCOUNTS and password == "admin":
+        logger.info(f"[DEMO_BACKDOOR_MATCHED] Account: {username}")
         demo_user = DEMO_ACCOUNTS[username]
         access_token = create_access_token(data={"sub": username, "role": demo_user["role"]})
-        logger.info(f"Demo login success for {username}")
+        logger.info(f"[TOKEN_GENERATED] Success: true | Account: {username}")
         return {
             "access_token": access_token, 
             "token_type": "bearer", 
@@ -152,70 +149,86 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
         }
 
     # 1. Check Local DB First
+    logger.debug(f"[LOCAL_DB_LOOKUP] Querying User: {username}")
     query = select(User).where(User.email == username)
     result = await db.execute(query)
     user = result.scalar_one_or_none()
 
+    if user:
+        logger.info(f"[USER_RECORD_FOUND] Local ID: {user.id}")
+    else:
+        logger.info(f"[USER_RECORD_NOT_FOUND] Local DB: {username}")
+
     traccar_success = False
+    traccar_reachable = False
     jsessionid = None
 
     # 2. Try proxy Auth to Traccar
     try:
-        logger.info(f"Attempting Traccar proxy auth for {form_data.username} at {settings.TRACCAR_URL}")
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        logger.info(f"[TRACCAR_PROXY_AUTH_START] URL: {settings.TRACCAR_URL} | User: {username}")
+        async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.post(
                 f"{settings.TRACCAR_URL}/api/session",
                 data={"email": form_data.username, "password": form_data.password}
             )
+            traccar_reachable = True
+            logger.info(f"[TRACCAR_RESPONSE] Status: {resp.status_code}")
             
-            logger.info(f"Traccar response: {resp.status_code}")
             if resp.status_code == 200:
                 traccar_success = True
-                traccar_user = resp.json()
                 jsessionid = resp.cookies.get("JSESSIONID")
-                logger.info(f"Traccar login success for {form_data.username}")
-                
-                if not user:
-                     logger.info(f"Creating missing local user for {form_data.username}")
-                     user = User(id=traccar_user["id"], email=traccar_user["email"], name=traccar_user["name"])
-                     db.add(user)
+                logger.info(f"[TRACCAR_AUTH_SUCCESS] Session Created: {bool(jsessionid)}")
             else:
-                logger.warning(f"Traccar login failed for {form_data.username}: {resp.status_code} - {resp.text[:100]}")
+                logger.warning(f"[TRACCAR_AUTH_FAILED] Status: {resp.status_code} | Reason: {resp.text[:100]}")
     except Exception as e:
-        logger.error(f"Traccar API Error for {form_data.username}: {e}")
-        pass
+        logger.warning(f"[TRACCAR_PROXY_UNREACHABLE] {settings.TRACCAR_URL} — {str(e)}")
 
-    if not traccar_success:
-        logger.warning(f"Login failed for {form_data.username}: Traccar authentication failed.")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if user:
-        try:
-            attrs = user.attributes or {}
-            if jsessionid:
-                attrs["jsessionid"] = jsessionid
-                user.attributes = attrs
-            
+    if traccar_success:
+        if not user:
+            logger.info(f"[SYNCING_NEW_USER] Creating local record for {username}")
+            user = User(email=username, name=username.split('@')[0], attributes={"role": "USER"})
+            db.add(user)
             await db.commit()
-            logger.info(f"Session updated for {user.email}")
-        except Exception as e:
-            logger.error(f"Database error during login commit for {user.email}: {e}")
-            # Even if commit fails, we might want to let them in if it's just attributes
-            await db.rollback()
-    
-        role = "USER"
-        if user.administrator: role = "SUPERADMIN"
-        elif user.attributes and user.attributes.get("role") == "ADMIN": role = "ADMIN"
-    
-        access_token = create_access_token(data={"sub": user.email, "role": role})
-        logger.info(f"Login successful for {user.email} (Role: {role})")
-        return {"access_token": access_token, "token_type": "bearer", "role": role, "name": user.name}
+            await db.refresh(user)
 
-    raise HTTPException(status_code=401, detail="Authentication failed")
+        role = "USER"
+        if user.administrator:
+            role = "SUPERADMIN"
+        elif user.attributes and user.attributes.get("role") == "ADMIN":
+            role = "ADMIN"
+            
+        access_token = create_access_token(data={"sub": user.email, "role": role})
+        logger.info(f"[AUTH_SUCCESS] Token Issued for {username} | Role: {role}")
+        return {
+            "access_token": access_token, 
+            "token_type": "bearer", 
+            "role": role, 
+            "name": user.name
+        }
+
+    # 3. Traccar unreachable + user exists locally → allow login as fallback
+    if not traccar_reachable and user:
+        logger.warning(f"[AUTH_FALLBACK] Traccar unreachable — allowing local login for {username}")
+        role = "USER"
+        if user.administrator:
+            role = "SUPERADMIN"
+        elif user.attributes and user.attributes.get("role") == "ADMIN":
+            role = "ADMIN"
+            
+        access_token = create_access_token(data={"sub": user.email, "role": role})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": role,
+            "name": user.name
+        }
+
+    logger.warning(f"[AUTH_FAILURE] Invalid credentials for {username}")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials or security key",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 @router.get("/me")
 async def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):

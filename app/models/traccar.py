@@ -1,8 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, JSON, Boolean
-from sqlalchemy.orm import declarative_base
+from app.db.base_class import Base
 from datetime import datetime
-
-Base = declarative_base()
 
 class Device(Base):
     __tablename__ = "tc_devices"
@@ -137,3 +135,14 @@ class VehicleSpecsCache(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Driver(Base):
+    __tablename__ = "tc_drivers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(128))
+    uniqueid = Column(String(128), unique=True, index=True)
+    attributes = Column(JSON)
+
+class DeviceDriver(Base):
+    __tablename__ = "tc_device_driver"
+    deviceid = Column(Integer, ForeignKey("tc_devices.id"), primary_key=True)
+    driverid = Column(Integer, ForeignKey("tc_drivers.id"), primary_key=True)

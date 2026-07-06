@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Body, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, Body, BackgroundTasks, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
@@ -8,6 +8,7 @@ from app.models.traccar import Device, Position, VehicleSpecsCache
 from app.services.vin_service import VINService
 from typing import Dict, Any
 import re
+from datetime import datetime
 from loguru import logger
 import json
 from pydantic import BaseModel
@@ -40,6 +41,56 @@ async def get_live_vehicles(
     retriever = SQLRetriever(db, current_user)
     return await retriever.get_live_vehicles(limit=limit)
 
+
+# ── GET /positions ─────────────────────────────────────────────────────────────
+# Historical GPS positions for a device in a time range (for Route Playback)
+# Queries local tc_positions table directly — no Traccar session required.
+@router.get("/positions")
+async def get_positions(
+    deviceId: int,
+    from_: str = Query(default=None, alias="from"),
+    to_: str = Query(default=None, alias="to"),
+    db: AsyncSession = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    try:
+        q = select(Position).where(Position.deviceid == deviceId)
+        if from_:
+            try:
+                from_dt = datetime.fromisoformat(from_.replace("Z", "+00:00")).replace(tzinfo=None)
+                q = q.where(Position.fixtime >= from_dt)
+            except Exception:
+                pass
+        if to_:
+            try:
+                to_dt = datetime.fromisoformat(to_.replace("Z", "+00:00")).replace(tzinfo=None)
+                q = q.where(Position.fixtime <= to_dt)
+            except Exception:
+                pass
+        q = q.order_by(Position.fixtime.asc()).limit(5000)
+        result = await db.execute(q)
+        positions = result.scalars().all()
+        return [
+            {
+                "id": p.id,
+                "deviceId": p.deviceid,
+                "fixTime": p.fixtime.isoformat() if p.fixtime else None,
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "altitude": p.altitude,
+                "speed": round((p.speed or 0) * 1.852, 2),  # knots → km/h
+                "course": p.course,
+                "valid": p.valid,
+                "attributes": p.attributes or {},
+            }
+            for p in positions
+            if p.latitude and p.longitude
+        ]
+    except Exception as e:
+        logger.error(f"[POSITIONS] Error fetching positions for device {deviceId}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── GET /{device_id}/intel ────────────────────────────────────────────────────
 # Full enriched profile: VIN badge, specs (from DB cache), depreciation data
 @router.get("/{device_id}/intel")
@@ -48,6 +99,8 @@ async def get_vehicle_intel(
     db: AsyncSession = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
+    import asyncio
+
     # Join device + latest position in one query
     q = (
         select(Device, Position)
@@ -63,78 +116,140 @@ async def get_vehicle_intel(
     pos_attr  = position.attributes  if position else {}
     dev_attr  = device.attributes    or {}
 
-    # --- VIN resolution: native DB column first, then attributes ---
-    vin        = device.vin or pos_attr.get("obdVin") or pos_attr.get("io256") or dev_attr.get("vin")
-    vin_source = device.vin_source  # 'obd' | 'manual' | None
+    # --- Parallel fetch: IMEI mapping, overspeed count, GPS summary, alerts ---
+    from sqlalchemy import text
 
-    # --- Determine badge ---
-    if vin_source == "obd":
-        badge = {"label": "⚡ ECU Verified", "class": "success"}
-    elif vin_source == "manual":
-        badge = {"label": "🤖 Profile Synced", "class": "primary"}
-    else:
-        badge = {"label": "⚠️ Profile Incomplete", "class": "warning"}
+    alias_task = db.execute(text("SELECT alias_name FROM ke_vehicle_imei WHERE imei = :imei LIMIT 1"), {"imei": device.uniqueid})
+    overspeed_task = db.execute(text("""
+        SELECT COUNT(*) FROM tc_events
+        WHERE deviceid = :did AND type = 'alarm' AND eventtime >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND (attributes LIKE '%overspeed%' OR attributes LIKE '%speed%')
+    """), {"did": device_id})
+    gps_task = db.execute(text("""
+        SELECT AVG(total_distance_km), MAX(max_speed_kmh), AVG(avg_speed_kmh),
+               SUM(speed_violations), COUNT(*)
+        FROM ke_gps_daily WHERE device_id = :did AND record_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    """), {"did": device_id})
 
-    # --- Specs (from cached DB columns) ---
-    pid_profile_data = {}
-    if device.pid_profile:
+    alias_res, os_res, gs_res = await asyncio.gather(alias_task, overspeed_task, gps_task)
+
+    alias_row = alias_res.fetchone()
+    lookup_name = alias_row[0] if alias_row else None
+    overspeed_count = (os_res.fetchone()[0] or 0) if os_res else 0
+
+    gs_row = gs_res.fetchone() if gs_res else None
+    gps_summary = {}
+    if gs_row and gs_row[0] is not None:
+        gps_summary = {
+            "avg_daily_km": round(float(gs_row[0]), 1),
+            "max_speed_7d": round(float(gs_row[1]), 1),
+            "avg_speed_7d": round(float(gs_row[2]), 1),
+            "speed_violations_7d": int(gs_row[3] or 0),
+            "days_active_7d": int(gs_row[4]),
+        }
+
+    # --- FDB data (only if alias found) ---
+    fdb_data = {}
+    if lookup_name:
         try:
-            pid_profile_data = json.loads(device.pid_profile)
+            fdb_result = await db.execute(text("""
+                SELECT vehicle_registration, benchmark_kmpl, allocated_km,
+                       shift_type, shift_hrs, fuel_type, tonnage,
+                       vehicle_category, vehicle_type, make, model_year,
+                       fleet_group, region, cluster, tracker_vendor
+                FROM ke_fleet_database
+                WHERE vehicle_registration = :vname LIMIT 1
+            """), {"vname": lookup_name})
+            fdb_row = fdb_result.fetchone()
+            if fdb_row:
+                fdb_data = {
+                    "vehicle_registration": fdb_row[0], "benchmark_kmpl": fdb_row[1],
+                    "allocated_km": fdb_row[2], "shift_type": fdb_row[3], "shift_hrs": fdb_row[4],
+                    "fuel_type": fdb_row[5], "tonnage": fdb_row[6], "category": fdb_row[7],
+                    "vehicle_type": fdb_row[8], "make": fdb_row[9], "model_year": fdb_row[10],
+                    "fleet_group": fdb_row[11], "region": fdb_row[12], "cluster": fdb_row[13],
+                    "tracker_vendor": fdb_row[14],
+                }
+        except Exception as e:
+            logger.error(f"[INTEL] FDB lookup error: {e}")
+
+    # --- Recent alerts ---
+    recent_alerts = []
+    if lookup_name:
+        try:
+            ra_result = await db.execute(text("""
+                SELECT alert_type, severity, title, created_at
+                FROM fleet_alerts WHERE vehicle = :vname ORDER BY created_at DESC LIMIT 10
+            """), {"vname": lookup_name})
+            for r in ra_result.fetchall():
+                recent_alerts.append({
+                    "type": r[0], "severity": r[1], "title": r[2],
+                    "time": str(r[3]) if r[3] else None
+                })
         except Exception:
             pass
 
+    # --- VIN ---
+    vin = device.vin or pos_attr.get("obdVin") or pos_attr.get("io256") or dev_attr.get("vin")
+    vin_source = device.vin_source or ("obd" if vin else None)
+
+    if vin_source == "obd":
+        badge = {"label": "ECU Verified", "class": "success"}
+    elif vin_source == "manual":
+        badge = {"label": "Profile Synced", "class": "primary"}
+    else:
+        badge = {"label": "Profile Incomplete", "class": "warning"}
+
+    # --- Specs ---
+    pid_profile_data = {}
+    if device.pid_profile:
+        try: pid_profile_data = json.loads(device.pid_profile)
+        except: pass
+
     displacement = pid_profile_data.get("displacement_l") or "N/A"
-    fuel_type    = pid_profile_data.get("fuel_type")      or "N/A"
+    fuel_type = pid_profile_data.get("fuel_type") or fdb_data.get("fuel_type") or "N/A"
 
     specs = {
-        "make":       device.manufacturer or "N/A",
-        "model":      device.model        or dev_attr.get("model") or "N/A",
-        "year":       device.year         or dev_attr.get("year")  or None,
-        "engine":     f"{displacement}L" if displacement != "N/A" else "N/A",
-        "fuel_type":  fuel_type,
-        "category":   device.category     or "N/A",
+        "make": device.manufacturer or fdb_data.get("make") or "N/A",
+        "model": device.model or dev_attr.get("model") or fdb_data.get("vehicle_type") or "N/A",
+        "year": device.year or dev_attr.get("year") or fdb_data.get("model_year") or "N/A",
+        "engine": f"{displacement}L" if displacement != "N/A" else "N/A",
+        "fuel_type": fuel_type,
+        "category": device.category or fdb_data.get("category") or "N/A",
     }
 
-    # --- Odometer / usage for depreciation graph ---
-    total_dist_m  = pos_attr.get("totalDistance") or 0       # metres
+    # --- Odometer ---
+    total_dist_m = pos_attr.get("totalDistance") or 0
     total_dist_km = round(total_dist_m / 1000, 1)
+    if total_dist_km <= 0 and fdb_data.get("allocated_km"):
+        total_dist_km = float(fdb_data.get("allocated_km") or 120000)
 
-    # Simple depreciation model (can be improved):
-    # Linear: vehicle is worth 100% at 0 km, depreciates ~1% per 2 000 km, floor 10%
-    current_year = 2026
-    vehicle_age  = (current_year - device.year) if device.year else 0
-    km_depr      = min(90, total_dist_km / 2000)          # max 90% from km
-    age_depr     = min(50, vehicle_age * 5)                # max 50% from age (5%/yr)
+    # --- Depreciation ---
+    current_year = datetime.now().year
+    try: vy = int(specs["year"])
+    except: vy = current_year
+    vehicle_age = max(0, current_year - vy)
+    km_depr = min(90, total_dist_km / 2000) if total_dist_km > 0 else 15
+    age_depr = min(50, vehicle_age * 5)
     current_value_pct = max(10, 100 - km_depr - age_depr)
+    depr_curve = [max(10, 100 - (age_depr + i * 5) - km_depr) for i in range(5)]
+    depr_labels = [str(vy + i) for i in range(5)]
 
-    # Build a 5-point depreciation curve (years 0..4 from baseline)
-    depr_curve = []
-    for i in range(5):
-        yr_val = max(10, 100 - (age_depr + i * 5) - km_depr)
-        depr_curve.append(round(yr_val, 1))
-
-    depr_labels = [str(current_year - vehicle_age + i) for i in range(5)] if device.year else [f"Y{i+1}" for i in range(5)]
-
-    # --- Is profile complete? ---
-    is_incomplete = not vin or not device.manufacturer or not device.model
+    is_incomplete = not vin or specs.get("make") == "N/A" or specs.get("model") == "N/A"
 
     return {
-        "device_id":        device_id,
-        "name":             device.name,
-        "unique_id":        device.uniqueid,
-        "vin":              vin,
-        "vin_source":       vin_source,
-        "badge":            badge,
-        "specs":            specs,
-        "is_incomplete":    is_incomplete,
-        "odometer_km":      total_dist_km,
-        "profile_status":   device.profile_status,
+        "device_id": device_id, "name": device.name, "unique_id": device.uniqueid,
+        "vin": vin, "vin_source": vin_source, "badge": badge, "specs": specs,
+        "is_incomplete": is_incomplete, "odometer_km": total_dist_km,
+        "profile_status": device.profile_status or "obd_verified",
         "depreciation": {
-            "labels":          depr_labels,
-            "projected":       [round(100 - i*7, 1) for i in range(5)],  # expected norm
-            "actual":          depr_curve,
-            "current_pct":     round(current_value_pct, 1),
-        }
+            "labels": depr_labels,
+            "projected": [round(100 - i*7, 1) for i in range(5)],
+            "actual": [round(v, 1) for v in depr_curve],
+            "current_pct": round(current_value_pct, 1),
+        },
+        "overspeed_count": overspeed_count, "fdb_data": fdb_data,
+        "gps_summary": gps_summary, "recent_alerts": recent_alerts,
     }
 
 # ── PATCH /{device_id}/vin ────────────────────────────────────────────────────

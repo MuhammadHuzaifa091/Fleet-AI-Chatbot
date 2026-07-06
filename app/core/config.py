@@ -1,9 +1,9 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+﻿from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 class Settings(BaseSettings):
     # App Settings
-    PROJECT_NAME: str = "AI_Telemetrix"
+    PROJECT_NAME: str = "AI_Telematics"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
 
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     TRACCAR_URL: str = "http://localhost:8082"
     PROD_NETWORK_PATH: Optional[str] = None
 
-    # PC12 (MASTER) Traccar REST API — used by auto-sync (read-only)
+    # PC12 (MASTER) Traccar REST API â€” used by auto-sync (read-only)
     PC12_API_URL: str = "http://202.141.246.12:8082"
     PC12_API_USER: str = "admin"
     PC12_API_PASS: str = "admin"

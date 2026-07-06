@@ -18,14 +18,21 @@ class SQLRetriever:
         return query.join(UserDevice, UserDevice.deviceid == Device.id).where(UserDevice.userid == self.current_user["id"])
 
     async def get_live_vehicles(self, limit: int = 1000) -> List[Dict[str, Any]]:
-        # LEFT JOIN: show vehicles even without a position record
-        query = select(Device, Position).outerjoin(Position, Device.positionid == Position.id).where(Device.disabled == False)
-        query = self._apply_rbac(query).limit(limit)
+        # JOIN: Device + Position + Driver
+        from app.models.traccar import Driver, DeviceDriver
+        query = (
+            select(Device, Position, Driver)
+            .outerjoin(Position, Device.positionid == Position.id)
+            .outerjoin(DeviceDriver, Device.id == DeviceDriver.deviceid)
+            .outerjoin(Driver, DeviceDriver.driverid == Driver.id)
+            .where(Device.disabled == False)
+        )
+        query = self._apply_rbac(query).order_by(Device.lastupdate.desc()).limit(limit)
         
         result = await self.db.execute(query)
         data = []
         
-        for device, position in result.all():
+        for device, position, driver in result.all():
             dev_attr = device.attributes or {}
             pos_attr = position.attributes if position else {}
             
@@ -68,6 +75,9 @@ class SQLRetriever:
                 "batteryLevel":  battery,
                 "make":          getattr(device, 'manufacturer', None) or dev_attr.get("make") or None,
                 "year":          getattr(device, 'year', None) or dev_attr.get("year") or None,
+                "driverName":    (driver.name if driver and driver.name else None) or (
+                    f"DRIVER-{str(device.uniqueid)[-6:]}" if device.uniqueid and len(str(device.uniqueid)) >= 6 else (device.contact or "No Driver Assigned")
+                )
             })
         return data
 

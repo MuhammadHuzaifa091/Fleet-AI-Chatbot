@@ -33,7 +33,7 @@ class ReportService:
         elements = []
 
         # 1. Header
-        elements.append(Paragraph("AI - Telemetrix Intelligence Report", title_style))
+        elements.append(Paragraph("AI-Telematics Intelligence Report", title_style))
         elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_style))
         elements.append(Spacer(1, 12))
 
@@ -66,17 +66,18 @@ class ReportService:
         # 3. Detailed Vehicle Matrix
         elements.append(Paragraph("Live Telemetry Matrix", styles['Heading2']))
         
-        vehicle_data = [["Vehicle Name", "UniqueID", "Speed", "Status", "Fuel %"]]
+        vehicle_data = [["Vehicle Name", "UniqueID", "Assigned Driver", "Speed", "Status", "Fuel %"]]
         for v in vehicles[:20]: # Limit to top 20 for PDF space
             vehicle_data.append([
                 v['name'],
                 v['uniqueId'],
+                v.get('driverName') or 'None',
                 f"{v.get('speed', 0):.1f} km/h",
                 v['status'].upper(),
                 f"{v.get('attributes', {}).get('fuelLevel', 75)}%"
             ])
             
-        v_table = Table(vehicle_data, colWidths=[150, 120, 80, 80, 80])
+        v_table = Table(vehicle_data, colWidths=[130, 100, 100, 60, 60, 60])
         v_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -152,16 +153,17 @@ class ReportService:
         # 3. Detailed Vehicle Matrix
         elements.append(Paragraph("Live Telemetry Matrix", styles['Heading2']))
         
-        vehicle_data = [["Vehicle Name", "UniqueID", "Speed", "Status"]]
+        vehicle_data = [["Vehicle Name", "UniqueID", "Assigned Driver", "Speed", "Status"]]
         for v in vehicles[:50]: # Background can handle more
             vehicle_data.append([
                 v.get('name', 'N/A'),
                 v.get('uniqueId', 'N/A'),
+                v.get('driverName') or 'None',
                 f"{v.get('speed', 0):.1f} km/h",
                 v.get('status', 'offline').upper()
             ])
             
-        v_table = Table(vehicle_data, colWidths=[150, 120, 100, 100])
+        v_table = Table(vehicle_data, colWidths=[130, 100, 120, 80, 80])
         v_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

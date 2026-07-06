@@ -43,7 +43,7 @@ async def get_stats_summary(
 
             overspeed_res = await db.execute(
                 select(func.count(Event.id))
-                .where(Event.type == 'deviceOverspeed', Event.servertime >= datetime.utcnow() - timedelta(days=1))
+                .where(Event.type == 'deviceOverspeed', Event.eventtime >= datetime.utcnow() - timedelta(days=1))
             )
             overspeed = overspeed_res.scalar() or 0
 

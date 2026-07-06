@@ -232,6 +232,24 @@ async def _upsert_batch(db: AsyncSession, table: str, rows: List[Dict]):
 
         if not data.get("id"):
             continue  # Skip rows without a primary key
+
+        # --- Automated Naming Convention for Devices ---
+        if table == "tc_devices":
+            imei = data.get("uniqueid")
+            if imei and len(str(imei)) >= 6:
+                suffix = str(imei)[-6:]
+                # Check if name is already professional (BRAND-XXXXXX)
+                # If it is VEHICLE, UNNAMED, just numbers, or empty, force HINO
+                raw_name = (data.get("name") or "").upper()
+                brand = raw_name.split("-")[0].strip()
+                
+                # List of generic terms to replace with 'VEHICLE'
+                generic_terms = ["VEHICLE", "UNNAMED", "DEVICE", "ASSET", "TRUCK", "HINO", "FLEET"]
+                if not brand or brand.isdigit() or brand in generic_terms or len(brand) < 2:
+                    brand = "VEHICLE"
+                
+                data["name"] = f"{brand}-{suffix}"
+
         bulk_data.append(data)
 
     if bulk_data:
@@ -299,6 +317,10 @@ class SyncService:
                 results["synced"]["users"]   = await _upsert_batch(db, "tc_users",   users)
                 results["synced"]["devices"] = await _upsert_batch(db, "tc_devices", devices)
 
+                # ── Automated Driver Management & Mapping ───────────────────
+                await SyncService._automated_driver_mapping(db, devices)
+
+
                 if perms:
                     p_data = [
                         {"u": p.get("userId") or p.get("userid"),
@@ -327,7 +349,7 @@ class SyncService:
                 )
 
                 # Always kick off background telemetry sync
-                asyncio.create_task(SyncService._fetch_and_write_telemetry())
+                # asyncio.create_task(SyncService._fetch_and_write_telemetry())  # DISABLED: sync services stopped
                 results["message"] = (
                     "Phase-1 complete. Telemetry (events/positions) "
                     "syncing in background — check /api/v1/sync/status."
@@ -359,6 +381,73 @@ class SyncService:
             await SyncService._write_telemetry(events, positions)
         except Exception as exc:
             logger.error(f"[SYNC-BG] Telemetry fetch error: {exc}")
+
+    @staticmethod
+    async def _automated_driver_mapping(db: AsyncSession, devices: List[Dict]) -> None:
+        """
+        Creates 'DRIVER-XXXXXX' for each device using last 6 digits of IMEI (uniqueid).
+        Links them in tc_device_driver.
+        """
+        if not devices: return
+        
+        drivers_to_upsert = []
+        mappings_to_upsert = []
+        
+        for dev in devices:
+            device_id = dev.get("id")
+            imei = dev.get("uniqueid") or dev.get("uniqueId")
+            
+            if not device_id or not imei or len(str(imei)) < 6:
+                continue
+            
+            suffix = str(imei)[-6:]
+            driver_name = f"DRIVER-{suffix}"
+            driver_uniqueid = suffix # Requirement: uniqueid = last_6_digits
+            
+            # Use deterministic negative IDs for auto-drivers to avoid collision with real Traccar drivers
+            import zlib
+            driver_numeric_id = zlib.adler32(f"auto-driver-{suffix}".encode()) & 0x7fffffff
+            
+            drivers_to_upsert.append({
+                "id": driver_numeric_id,
+                "name": driver_name,
+                "uniqueid": driver_uniqueid,
+                "attributes": json.dumps({"auto_assigned": True})
+            })
+            
+            mappings_to_upsert.append({
+                "deviceid": device_id,
+                "driverid": driver_numeric_id
+            })
+
+        if drivers_to_upsert:
+            # 1. Upsert Drivers (Idempotent)
+            cols = "`id`, `name`, `uniqueid`, `attributes`"
+            places = ":id, :name, :uniqueid, :attributes"
+            updates = "`name`=VALUES(`name`), `uniqueid`=VALUES(`uniqueid`)"
+            sql_drv = f"INSERT INTO `tc_drivers` ({cols}) VALUES ({places}) ON DUPLICATE KEY UPDATE {updates}"
+            
+            for i in range(0, len(drivers_to_upsert), 500):
+                await db.execute(text(sql_drv), drivers_to_upsert[i : i + 500])
+            
+            # 2. Upsert Mappings (Only if missing or mapping to our auto-driver)
+            # Never remove manually assigned drivers.
+            # We use INSERT IGNORE or a specific check.
+            sql_map = """
+                INSERT INTO `tc_device_driver` (`deviceid`, `driverid`) 
+                SELECT :deviceid, :driverid 
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM `tc_device_driver` 
+                    WHERE deviceid = :deviceid 
+                    AND driverid != :driverid
+                )
+                ON DUPLICATE KEY UPDATE deviceid=deviceid
+            """
+            for m in mappings_to_upsert:
+                await db.execute(text(sql_map), m)
+                
+            await db.commit()
+            logger.info(f"[SYNC-AUTO] Processed {len(drivers_to_upsert)} driver-vehicle mappings.")
 
     @staticmethod
     async def _write_telemetry(events: List[Dict], positions: List[Dict]) -> None:

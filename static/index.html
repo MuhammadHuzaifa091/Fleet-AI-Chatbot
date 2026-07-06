@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI - Telemetrix | Premium AI Telematics</title>
-    <link rel="stylesheet" href="/static/style.css?v=6.8">
-    <link rel="stylesheet" href="/static/vin.css?v=6.8">
+    <title>AI-Telematics | Premium AI Telematics</title>
+    <link rel="stylesheet" href="/static/style.css?v=8.2">
+    <link rel="stylesheet" href="/static/vin.css?v=8.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -17,6 +17,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
 </head>
 <body>
     <!-- Background Design -->
@@ -40,7 +41,7 @@
                         <i data-lucide="zap"></i>
                     </div>
                 </div>
-                <h2 class="login-title" data-i18n="login_title">AI - Telemetrix</h2>
+                <h2 class="login-title" data-i18n="login_title">AI-Telematics</h2>
                 <p class="login-subtitle" data-i18n="login_subtitle">Enterprise Intelligence Portal</p>
 
                 <!-- Language Selector -->
@@ -49,17 +50,6 @@
                         <i data-lucide="languages" class="lang-icon"></i>
                         <select id="ui-lang-select" class="lang-dropdown">
                             <option value="en">English (US)</option>
-                            <option value="ur">اردو (Urdu)</option>
-                            <option value="ar">العربية (Arabic)</option>
-                            <option value="zh">中文 (Chinese)</option>
-                            <option value="es">Español (Spanish)</option>
-                            <option value="fr">Français (French)</option>
-                            <option value="de">Deutsch (German)</option>
-                            <option value="ru">Русский (Russian)</option>
-                            <option value="pt">Português (Portuguese)</option>
-                            <option value="tr">Türkçe (Turkish)</option>
-                            <option value="it">Italiano (Italian)</option>
-                            <option value="hi">हिन्दी (Hindi)</option>
                         </select>
                     </div>
                 </div>
@@ -78,7 +68,7 @@
                     <div class="input-wrapper">
                         <label data-i18n="label_password">Security Key</label>
                         <i data-lucide="lock"></i>
-                        <input type="password" id="password" class="input-field" placeholder="••••••••" required data-i18n-placeholder="label_password">
+                        <input type="password" id="password" class="input-field" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required data-i18n-placeholder="label_password">
                     </div>
 
                     <button type="submit" class="auth-btn" data-i18n="btn_access">
@@ -91,7 +81,7 @@
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" data-i18n="demo_note">Valid for all fleet intelligence modules</div>
                     </div>
                     <p id="toggle-text" style="margin-top: 24px; font-size: 0.9rem; color: var(--text-muted);" data-i18n="new_to">
-                        New to Telemetrix? <a href="#" id="toggle-auth" style="color: var(--brand-primary); text-decoration: none; font-weight: 700;" data-i18n="req_access">Request Access</a>
+                        New to AI-Telematics? <a href="#" id="toggle-auth" style="color: var(--brand-primary); text-decoration: none; font-weight: 700;" data-i18n="req_access">Request Access</a>
                     </p>
                 </form>
                 <div id="login-error" class="error-msg" style="margin-top: 20px; color: var(--brand-danger); font-size: 0.85rem; font-weight: 600;"></div>
@@ -107,9 +97,9 @@
                 <button id="toggle-sidebar" class="sidebar-toggle">
                     <i data-lucide="chevron-left"></i>
                 </button>
-                <div class="logo" style="margin-bottom: 40px;">
-                    <div class="logo-icon" style="background: var(--brand-primary); color: white; border-radius: 10px;"><i data-lucide="zap"></i></div>
-                    <h1 style="font-size: 1.3rem;">AI - Telemetrix</h1>
+                <div class="logo">
+                    <div class="logo-icon"><i data-lucide="zap"></i></div>
+                    <h1>AI-Telematics</h1>
                 </div>
                 
                 <nav class="nav-menu">
@@ -125,13 +115,17 @@
                         <i data-lucide="info"></i>
                         <span>Vehicle Intelligence</span>
                     </a>
+                    <a href="#" class="nav-item" data-view="driver" data-i18n="nav_driver">
+                        <i data-lucide="user"></i>
+                        <span>Driver Intelligence</span>
+                    </a>
                     <a href="#" class="nav-item" data-view="fuel" data-i18n="nav_fuel">
                         <i data-lucide="fuel"></i>
                         <span>Fuel Analytics</span>
                     </a>
-                    <a href="#" class="nav-item" data-view="safety" data-i18n="nav_safety">
-                        <i data-lucide="user-check"></i>
-                        <span>Driver Safety</span>
+                    <a href="#" class="nav-item" data-view="data-import" data-i18n="nav_data_import">
+                        <i data-lucide="database"></i>
+                        <span>Data Import (FDB)</span>
                     </a>
                     <a href="#" class="nav-item" data-view="maintenance" data-i18n="nav_maint">
                         <i data-lucide="wrench"></i>
@@ -161,194 +155,260 @@
             <!-- Main Content -->
             <div class="main-wrapper">
                 <header class="top-header">
-                    <div class="header-main">
-                        <h1 class="section-title" data-i18n="dash_title">Fleet Command Center</h1>
-                        <p data-i18n="dash_subtitle">AI-Driven Real-time Intelligence</p>
+                    <div class="header-main greeting-block">
+                        <div class="greeting-text">
+                            <h1 id="greeting-title" class="greeting-title">Good morning 👋</h1>
+                            <p class="greeting-sub">Here's what's happening with your fleet today.</p>
+                        </div>
                     </div>
-                    <div class="header-actions" style="display:flex; gap:12px; align-items:center;">
-                        <button id="global-theme-toggle" class="glass-btn secondary" title="Toggle Theme">
+                    <div class="header-actions" style="display:flex; gap:10px; align-items:center; position:relative;">
+                        <!-- Notification Bell -->
+                        <button id="alert-bell-btn" class="icon-btn alert-bell-btn" title="Alerts" onclick="openAlertModal()">
+                            <i data-lucide="bell"></i>
+                            <span id="alert-badge" class="alert-bell-badge" style="display:none;">0</span>
+                        </button>
+                        <button id="global-theme-toggle" class="icon-btn" title="Toggle Theme">
                             <i data-lucide="sun"></i>
-                        </button>
-                        <button id="manual-pc12-sync-btn" class="glass-btn" style="display:none; color:var(--brand-warning); border-color:var(--brand-warning)20;">
-                            <i data-lucide="cloud-download"></i> <span>Sync Production Data</span>
-                        </button>
-                        <button class="glass-btn primary-glow" onclick="loadDashboardData()">
-                            <i data-lucide="refresh-cw"></i> <span data-i18n="refresh">Refresh</span>
                         </button>
                     </div>
                 </header>
 
                 <div id="view-analytics" class="sub-view active-view">
-                    <!-- Grouped Analytics Grid -->
-                    <div class="analytics-group-container">
-                        
-                        <!-- MASTER CARD: VEHICLES -->
-                        <div class="master-card-wrap" id="group-vehicles">
-                            <div class="master-card" onclick="toggleAnalyticsGroup('group-vehicles')">
-                                <div style="display:flex; align-items:center; gap: 24px;">
-                                    <div class="card-icon-large" style="background: rgba(99, 102, 241, 0.15); color: var(--brand-primary);"><i data-lucide="truck"></i></div>
+                    <div class="fleet-v2-container">
+                        <!-- Removed Top Header Refined -->
+                        <!-- 3 Premium Expandable KPI Cards -->
+                        <div class="dash-v2-kpi-row">
+                            <!-- Card 1: Vehicles -->
+                            <div class="dash-v2-kpi-card premium" id="kpi-card-vehicles" onclick="toggleKpiExpansion('vehicles')">
+                                <div class="kpi-main-interactive">
+                                    <div class="kpi-visual-box" id="fleet-lottie" style="width:100%;height:100%;"></div>
+                                    <div class="kpi-content-box">
+                                        <span class="kpi-label-top">Total Fleet Size</span>
+                                        <h2 class="main-val" id="kpi-total-v2">0</h2>
+                                    </div>
+                                </div>
+                                <div class="kpi-expansion-drawer">
+                                    <div class="kpi-expansion-grid">
+                                        <div class="expansion-stat-row">
+                                            <div class="exp-label"><span class="status-dot-v2" style="background:#059669;"></span> Online Mode</div>
+                                            <div class="exp-val"><span id="kpi-online-v2">0</span> <small class="exp-trend c-green" id="kpi-online-pct">0%</small></div>
+                                        </div>
+                                        <div class="expansion-stat-row">
+                                            <div class="exp-label"><span class="status-dot-v2" style="background:#3b82f6;"></span> Active Moving</div>
+                                            <div class="exp-val"><span id="kpi-moving-v2">0</span> <small class="exp-trend c-blue" id="kpi-moving-pct">0%</small></div>
+                                        </div>
+                                        <div class="expansion-stat-row" style="opacity:0.6;">
+                                            <div class="exp-label"><span class="status-dot-v2" style="background:#dc2626;"></span> Fleet Offline</div>
+                                            <div class="exp-val"><span id="kpi-offline-v2">0</span> <small class="exp-trend c-red" id="kpi-offline-pct">0%</small></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card 2: Trips -->
+                            <div class="dash-v2-kpi-card premium" id="kpi-card-trips" onclick="toggleKpiExpansion('trips')">
+                                <div class="kpi-main-interactive">
+                                    <div class="kpi-spark-container">
+                                        <canvas id="kpiTripsSparkline"></canvas>
+                                    </div>
+                                    <div class="kpi-visual-box" id="ops-lottie" style="width:100%;height:100%; opacity:0.6;"></div>
+                                    <div class="kpi-content-box">
+                                        <span class="kpi-label-top">Total Operations</span>
+                                        <h2 class="main-val" id="kpi-trips-total-v2">0</h2>
+                                    </div>
+                                </div>
+                                <div class="kpi-expansion-drawer">
+                                    <div class="kpi-expansion-grid">
+                                        <div class="expansion-stat-row">
+                                            <div class="exp-label">Active Trips</div>
+                                            <div class="exp-val c-blue" id="kpi-trips-running">0</div>
+                                        </div>
+                                        <div class="expansion-stat-row">
+                                            <div class="exp-label">Completed Today</div>
+                                            <div class="exp-val c-green" id="kpi-trips-completed">0</div>
+                                        </div>
+                                        <div class="expansion-stat-row">
+                                            <div class="exp-label">Total Distance</div>
+                                            <div class="exp-val">12,542 <small>km</small></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card 3: Alerts -->
+                            <div class="dash-v2-kpi-card premium" id="kpi-card-alerts" onclick="switchView('alerts')">
+                                <div class="kpi-main-interactive">
+                                    <div class="kpi-visual-box" id="alerts-lottie" style="width:100%;height:100%;"></div>
+                                    <div class="kpi-content-box">
+                                        <span class="kpi-label-top">Active Security Alerts</span>
+                                        <h2 class="main-val" id="kpi-alerts-count-v2">0</h2>
+                                    </div>
+                                </div>
+                                <div class="kpi-expansion-drawer" style="max-height:none; opacity:1; display:block; border-top:none; background:transparent;">
+                                    <div class="kpi-expansion-grid" style="padding-top:0;">
+                                        <div class="selector-box" style="margin:0;" onclick="toggleAlertSelector(event)">
+                                            <i data-lucide="bell-ring" style="width:14px; color:var(--brand-primary);"></i>
+                                            <span id="selected-alerts-summary" style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">Tamper: 0 | Geo: 0</span>
+                                            <i data-lucide="settings" style="width:14px; margin-left:auto;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fleet Status & Insights Section -->
+                        <div class="dash-v2-overview-section">
+                            <div class="dash-v2-donut-card">
+                                <div class="dash-v2-card-header">
+                                    <h2 style="font-family:'Space Grotesk';">Fleet Connectivity</h2>
+                                    <div class="stats-badge primary">Live Network Status</div>
+                                </div>
+                                <div class="donut-visual-container">
+                                    <div class="donut-chart-wrap">
+                                        <canvas id="fleetStatusDonutChart"></canvas>
+                                        <div class="donut-center-total">
+                                            <span class="total-val" id="donut-total-val">0</span>
+                                            <span class="total-lbl">Fleet Size</span>
+                                        </div>
+                                    </div>
+                                    <div class="legend-grid-v2">
+                                        <div class="legend-item-v2" onclick="filterMatrixByStatus('online')">
+                                            <div class="legend-lbl-row"><span class="legend-dot-v2" style="background:#059669; color:#059669;"></span> Online</div>
+                                            <div class="legend-val-v2" id="legend-online">0</div>
+                                        </div>
+                                        <div class="legend-item-v2" onclick="filterMatrixByStatus('moving')">
+                                            <div class="legend-lbl-row"><span class="legend-dot-v2" style="background:#3b82f6; color:#3b82f6;"></span> Moving</div>
+                                            <div class="legend-val-v2" id="legend-moving">0</div>
+                                        </div>
+                                        <div class="legend-item-v2" onclick="filterMatrixByStatus('idle')">
+                                            <div class="legend-lbl-row"><span class="legend-dot-v2" style="background:#d97706; color:#d97706;"></span> Idle</div>
+                                            <div class="legend-val-v2" id="legend-idle">0</div>
+                                        </div>
+                                        <div class="legend-item-v2" onclick="filterMatrixByStatus('offline')">
+                                            <div class="legend-lbl-row"><span class="legend-dot-v2" style="background:#dc2626; color:#dc2626;"></span> Offline</div>
+                                            <div class="legend-val-v2" id="legend-offline">0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="dash-v2-insights-card">
+                                <div class="dash-v2-card-header">
+                                    <h2 style="font-family:'Space Grotesk';">Operational Analytics</h2>
+                                </div>
+                                <div class="insights-list" style="margin-top:20px; display:flex; flex-direction:column; gap:32px;">
+                                    <div class="insight-item" style="display:flex; flex-direction:column; gap:8px;">
+                                        <div class="insight-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span class="insight-label" style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Fleet Availability</span>
+                                            <span class="insight-value" id="insight-availability" style="font-size:0.85rem; font-weight:700; color:#059669;">0%</span>
+                                        </div>
+                                        <div class="status-bar-progressive"><div class="bar-fill-v2" id="bar-availability" style="width:0%; background:#059669;"></div></div>
+                                    </div>
+                                    <div class="insight-item" style="display:flex; flex-direction:column; gap:8px;">
+                                        <div class="insight-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span class="insight-label" style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Fleet Utilization</span>
+                                            <span class="insight-value" id="insight-utilization" style="font-size:0.85rem; font-weight:700; color:#3b82f6;">0%</span>
+                                        </div>
+                                        <div class="status-bar-progressive"><div class="bar-fill-v2" id="bar-utilization" style="width:0%; background:#3b82f6;"></div></div>
+                                    </div>
+                                    <div class="insight-item" style="display:flex; flex-direction:column; gap:8px;">
+                                        <div class="insight-header" style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span class="insight-label" style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Trip Compliance</span>
+                                            <span class="insight-value" id="insight-completion" style="font-size:0.85rem; font-weight:700; color:#d97706;">0%</span>
+                                        </div>
+                                        <div class="status-bar-progressive"><div class="bar-fill-v2" id="bar-completion" style="width:0%; background:#d97706;"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- New Widgets Row: Health & Timeline -->
+                        <div class="dash-v2-widgets-row">
+                            <div class="health-score-widget">
+                                <h3 class="widget-title">Fleet Health Score</h3>
+                                <div class="health-gauge-ring">
+                                    <svg viewBox="0 0 120 120" aria-hidden="true">
+                                        <circle class="health-ring-bg" cx="60" cy="60" r="52" fill="none" stroke-width="10"/>
+                                        <circle class="health-ring-fill" id="fleet-health-ring" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-linecap="round"
+                                            stroke-dasharray="0 327" transform="rotate(-90 60 60)"/>
+                                    </svg>
+                                    <div class="health-score-center">
+                                        <div class="score-num" id="fleet-health-score">0</div>
+                                        <div class="score-label">System Integrity</div>
+                                    </div>
+                                </div>
+                                <div class="health-score-meta">
+                                    <span class="stats-badge success" id="health-status-badge">Excellent</span>
+                                    <span class="health-meta-text">Based on sensor status &amp; maintenance logs</span>
+                                </div>
+                            </div>
+
+                            <div class="activity-timeline-widget">
+                                <div class="widget-title-row">
+                                    <h3 class="widget-title">Activity Timeline</h3>
+                                    <span class="stats-badge primary" id="timeline-event-count">Live Feed</span>
+                                </div>
+                                <div class="timeline-feed-refined" id="dashboard-activity-feed">
+                                    <!-- Dynamic Feed -->
+                                    <div class="timeline-item-refined">
+                                        <div class="timeline-icon-v2" style="background:rgba(59,130,246,0.1); color:#3b82f6;"><i data-lucide="info"></i></div>
+                                        <div class="timeline-info-v2">
+                                            <h5>System Initialized</h5>
+                                            <p>Awaiting live telemetry stream...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Refined Telemetry Matrix -->
+                        <div class="dash-v2-matrix-section" id="dash-v2-matrix-section">
+                            <div class="matrix-header-refined" onclick="toggleMatrixCollapse()" style="cursor: pointer; user-select: none;">
+                                <div class="matrix-title-wrap">
+                                    <div class="matrix-icon-box" style="background:#2563eb1a; color:#2563eb;"><i data-lucide="layout"></i></div>
                                     <div>
-                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Vehicles</h3>
-                                        <p style="font-size:0.9rem; color:var(--text-dim);">Live fleet status & operational overview</p>
+                                        <h3 style="margin:0; font-family:'Space Grotesk'; font-size:1.5rem;">Live Asset Matrix</h3>
+                                        <p style="margin:4px 0 0; color:var(--fleet-text-sub); font-size:0.9rem;">Real-time diagnostics for all fleet assets</p>
                                     </div>
                                 </div>
-                                <div style="display:flex; align-items:center; gap: 32px;">
-                                    <div style="text-align:right;">
-                                        <div class="card-value animated-counter" id="kpi-total">0</div>
-                                        <div class="card-label" style="margin:0;" data-i18n="kpi_total">Total Units</div>
-                                    </div>
-                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
-                                </div>
-                            </div>
-                            <div class="subcards-grid">
-                                <div class="subcards-inner">
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_moving">Moving</span>
-                                        <span class="card-value animated-counter" id="kpi-moving" style="color:var(--brand-success);">0</span>
-                                        <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="trending-up"></i> Active Now</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_idle">Idle</span>
-                                        <span class="card-value animated-counter" id="kpi-idle" style="color:var(--brand-warning);">0</span>
-                                        <div class="card-trend" style="color:var(--brand-warning);"><i data-lucide="clock"></i> Engine On</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_stopped">Stopped</span>
-                                        <span class="card-value animated-counter" id="kpi-stopped" style="color:var(--brand-danger);">0</span>
-                                        <div class="card-trend" style="color:var(--brand-danger);"><i data-lucide="octagon"></i> Stationary</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_offline">Offline</span>
-                                        <span class="card-value animated-counter" id="kpi-offline" style="color:var(--text-dim);">0</span>
-                                        <div class="card-trend"><i data-lucide="wifi-off"></i> No Signal</div>
-                                    </div>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div class="stats-badge primary" id="matrix-asset-count" style="padding:8px 20px; font-size:1rem;">0 Assets</div>
+                                    <button type="button" class="glass-btn secondary" style="padding:8px 12px; display:flex; align-items:center; justify-content:center; border-radius:10px; cursor:pointer;" id="matrix-collapse-btn">
+                                        <i data-lucide="chevron-up" id="matrix-collapse-icon" style="width:16px; height:16px; transition: transform 0.3s ease;"></i>
+                                    </button>
                                 </div>
                             </div>
-                        </div>
+                            
+                            <div id="matrix-collapse-container" style="transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; overflow: hidden; max-height: 2000px;">
+                                <div class="matrix-actions-row">
+                                    <div class="matrix-filter-group">
+                                        <button type="button" class="matrix-filter-pill active" onclick="filterMatrixByStatus('')">All</button>
+                                        <button type="button" class="matrix-filter-pill" onclick="filterMatrixByStatus('online')">Online</button>
+                                        <button type="button" class="matrix-filter-pill" onclick="filterMatrixByStatus('moving')">Moving</button>
+                                        <button type="button" class="matrix-filter-pill" onclick="filterMatrixByStatus('idle')">Idle</button>
+                                        <button type="button" class="matrix-filter-pill" onclick="filterMatrixByStatus('offline')">Offline</button>
+                                    </div>
+                                    <div class="matrix-search-wrap">
+                                        <i data-lucide="search"></i>
+                                        <input type="text" id="matrix-search-input" placeholder="Search vehicle or driver..." oninput="filterMatrixTable()">
+                                    </div>
+                                </div>
 
-                        <!-- MASTER CARD: ALERTS -->
-                        <div class="master-card-wrap" id="group-alerts">
-                            <div class="master-card" onclick="toggleAnalyticsGroup('group-alerts')">
-                                <div style="display:flex; align-items:center; gap: 24px;">
-                                    <div class="card-icon-large" style="background: rgba(245, 158, 11, 0.15); color: var(--brand-warning);"><i data-lucide="bell-ring"></i></div>
-                                    <div>
-                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Alerts & Security</h3>
-                                        <p style="font-size:0.9rem; color:var(--text-dim);">Critical safety and security notifications</p>
-                                    </div>
+                                <div class="dash-v2-table-wrap">
+                                    <table class="dash-v2-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Asset Identity</th>
+                                                <th>Active Driver</th>
+                                                <th>Operational Status</th>
+                                                <th class="th-actions">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dash-v2-matrix-body">
+                                            <!-- Dynamic content -->
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div style="display:flex; align-items:center; gap: 32px;">
-                                    <div style="text-align:right;">
-                                        <div class="card-value animated-counter" id="kpi-alerts-total" style="color:var(--brand-warning);">0</div>
-                                        <div class="card-label" style="margin:0;" data-i18n="kpi_alerts">Active Alerts</div>
-                                    </div>
-                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
-                                </div>
-                            </div>
-                            <div class="subcards-grid">
-                                <div class="subcards-inner">
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_overspeed">Overspeed</span>
-                                        <span class="card-value animated-counter" id="kpi-overspeed" style="color:var(--brand-danger);">0</span>
-                                        <div class="card-trend" style="color:var(--brand-danger);"><i data-lucide="zap"></i> Safety Risk</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_ignition">Ignition</span>
-                                        <span class="card-value animated-counter" id="kpi-ignition">0</span>
-                                        <div class="card-trend"><i data-lucide="key"></i> Unauthorized</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label" data-i18n="kpi_geofence">Geofence</span>
-                                        <span class="card-value animated-counter" id="kpi-geofence">0</span>
-                                        <div class="card-trend"><i data-lucide="map-pin"></i> Boundary Exit</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label">Offline Alerts</span>
-                                        <span class="card-value animated-counter" id="kpi-offline-alerts">0</span>
-                                        <div class="card-trend"><i data-lucide="alert-triangle"></i> Connectivity</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- MASTER CARD: TRIPS -->
-                        <div class="master-card-wrap" id="group-trips">
-                            <div class="master-card" onclick="toggleAnalyticsGroup('group-trips')">
-                                <div style="display:flex; align-items:center; gap: 24px;">
-                                    <div class="card-icon-large" style="background: rgba(16, 185, 129, 0.15); color: var(--brand-success);"><i data-lucide="route"></i></div>
-                                    <div>
-                                        <h3 style="font-family:'Space Grotesk'; font-size:1.5rem;">Trips & Logistics</h3>
-                                        <p style="font-size:0.9rem; color:var(--text-dim);">Historical and active route intelligence</p>
-                                    </div>
-                                </div>
-                                <div style="display:flex; align-items:center; gap: 32px;">
-                                    <div style="text-align:right;">
-                                        <div class="card-value animated-counter" id="kpi-trips-total">0</div>
-                                        <div class="card-label" style="margin:0;">Total Trips</div>
-                                    </div>
-                                    <i data-lucide="chevron-down" class="expand-icon" style="transition: transform 0.4s; color: var(--text-dim);"></i>
-                                </div>
-                            </div>
-                            <div class="subcards-grid">
-                                <div class="subcards-inner">
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label">Running</span>
-                                        <span class="card-value animated-counter" id="kpi-running-trips" style="color:var(--brand-success);">0</span>
-                                        <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="play"></i> In Progress</div>
-                                    </div>
-                                    <div class="premium-card sub-card">
-                                        <span class="card-label">Completed</span>
-                                        <span class="card-value animated-counter" id="kpi-completed-trips">0</span>
-                                        <div class="card-trend"><i data-lucide="check-circle"></i> Successfully Ended</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Charts Grid -->
-                    <div class="charts-grid">
-                        <div class="chart-card">
-                            <div class="chart-header">
-                                <h3 class="chart-title">Fleet Dynamics</h3>
-                                <div class="stats-badge">Live Velocity & Energy</div>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="fleetTrendChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="chart-card">
-                            <div class="chart-header">
-                                <h3 class="chart-title">Status Distribution</h3>
-                            </div>
-                            <div class="donut-wrap">
-                                <canvas id="fleetStatusChart"></canvas>
-                                <div class="donut-center">
-                                    <h4 id="donut-total">0</h4>
-                                    <span>Total</span>
-                                </div>
-                            </div>
-                            <div class="donut-legend" id="donut-legend">
-                                <!-- Legend items injected here -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Asset Grid Section (Moved to Bottom) -->
-                    <div class="premium-card section-card matrix-collapsed" id="asset-matrix-container">
-                        <div class="section-header" id="toggle-asset-matrix" style="cursor: pointer;">
-                            <div>
-                                <h3 class="section-title">Live Asset Matrix</h3>
-                                <p class="section-subtitle">Comprehensive fleet unit status and telemetry</p>
-                            </div>
-                            <div style="display:flex; align-items:center; gap:15px;">
-                                <span id="vehicle-count-badge" class="stats-badge">35,405 Total Units</span>
-                                <i data-lucide="chevron-down" id="matrix-toggle-icon" style="transition: transform 0.3s;"></i>
-                            </div>
-                        </div>
-                        
-                        <div id="asset-grid-wrapper">
-                            <div id="asset-grid" class="asset-grid-container" style="margin-top: 24px;">
-                                <!-- Asset cards will be injected here -->
                             </div>
                         </div>
                     </div>
@@ -358,7 +418,7 @@
                 <div id="view-vehicle-intel" class="sub-view hidden-view">
                     <div class="module-content-container">
 
-                        <!-- ── Header Row ──────────────────────────────────── -->
+                        <!-- â”€â”€ Header Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                         <div class="module-header-row" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
                             <div>
                                 <h2 class="section-title" style="margin:0;">Vehicle Intelligence</h2>
@@ -368,7 +428,7 @@
                             </div>
                             <div class="vin-lookup-container" style="flex:1; min-width:280px;">
                                 <i data-lucide="search"></i>
-                                <input type="text" id="vin-search" placeholder="Search by VIN or vehicle name…">
+                                <input type="text" id="vin-search" placeholder="Search by VIN or vehicle nameâ€¦">
                                 <button class="glass-btn primary-glow" onclick="vinSearchAnalyze()">Analyze VIN</button>
                                 <button class="glass-btn" onclick="triggerManualVinEntry()"
                                     style="border:1px solid var(--brand-primary); color:var(--brand-primary);">
@@ -377,17 +437,17 @@
                             </div>
                         </div>
 
-                        <!-- ── Amber Incomplete Banner ─────────────────────── -->
+                        <!-- â”€â”€ Amber Incomplete Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                         <div id="intel-amber-banner" class="vin-warning-banner vin-hidden"
                             onclick="triggerManualVinEntry()" style="margin-top:16px; margin-bottom:0;">
-                            <span class="vin-warning-icon">⚠️</span>
+                            <span class="vin-warning-icon">âš ï¸</span>
                             <span class="vin-warning-text">
-                                <strong>Vehicle Profile Incomplete</strong> — No VIN detected.
+                                <strong>Vehicle Profile Incomplete</strong> â€” No VIN detected.
                                 Click here to manually enter the VIN and activate intelligence enrichment.
                             </span>
                         </div>
 
-                        <!-- ── Intelligence Dashboard (Default State) ─────────── -->
+                        <!-- â”€â”€ Intelligence Dashboard (Default State) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                         <div id="intel-no-selection" style="margin-top:24px;">
                             <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                                 <h3 style="font-size: 1.1rem; display:flex; align-items:center; gap:8px;">
@@ -406,8 +466,22 @@
                             </div>
                         </div>
 
-                        <!-- ── Main Intel Grid (hidden until vehicle selected) ─ -->
+                        <!-- â”€â”€ Main Intel Grid (hidden until vehicle selected) â”€ -->
                         <div id="intel-main-grid" style="display:none;">
+
+                            <!-- Navigation & Breadcrumbs -->
+                            <div class="intel-nav-row" style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding:12px 24px; background:rgba(255,255,255,0.02); border:1px solid var(--border-light); border-radius:12px;">
+                                <div class="breadcrumb-trail" style="display:flex; align-items:center; gap:8px; font-size:0.85rem; font-weight:600;">
+                                    <span class="breadcrumb-item" onclick="backToIntelDashboard()" style="cursor:pointer; color:var(--brand-primary); transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Vehicle Intelligence</span>
+                                    <i data-lucide="chevron-right" style="width:14px; color:var(--text-dim);"></i>
+                                    <span class="breadcrumb-item" onclick="backToIntelDashboard()" style="cursor:pointer; color:var(--text-secondary); transition: opacity 0.2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Managed Dashboard</span>
+                                    <i data-lucide="chevron-right" style="width:14px; color:var(--text-dim);"></i>
+                                    <span class="breadcrumb-active" id="intel-breadcrumb-name" style="color:var(--text-primary);">HINO-365231</span>
+                                </div>
+                                <button class="glass-btn primary-glow" onclick="backToIntelDashboard()" style="font-size:0.8rem; font-weight:700; display:flex; align-items:center; gap:8px;">
+                                    <i data-lucide="arrow-left" style="width:14px;"></i> Back to Intelligence Dashboard
+                                </button>
+                            </div>
 
                             <!-- ROW 1: Profile Card + Dynamic Intel Card -->
                             <div class="intel-grid" style="margin-top:20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
@@ -419,9 +493,9 @@
                                             <i data-lucide="truck" style="width: 32px; height: 32px; color: var(--brand-primary); opacity: 1;"></i>
                                         </div>
                                         <div class="profile-title">
-                                            <h3 id="intel-v-name" style="font-size: 1.5rem; margin-bottom: 4px;">—</h3>
+                                            <h3 id="intel-v-name" style="font-size: 1.5rem; margin-bottom: 4px;">â€”</h3>
                                             <div style="display:flex; align-items:center; gap:8px;">
-                                                <code id="intel-v-vin" style="font-size:0.9rem; color:var(--text-secondary); opacity: 0.8;">—</code>
+                                                <code id="intel-v-vin" style="font-size:0.9rem; color:var(--text-secondary); opacity: 0.8;">â€”</code>
                                                 <span id="intel-vin-badge" class="stats-badge success" style="display:none;">Verified</span>
                                             </div>
                                         </div>
@@ -431,25 +505,25 @@
                                     <div class="profile-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;">
                                         <div class="detail-item">
                                             <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Make</span>
-                                            <strong id="intel-make" style="display: block; font-size: 1.1rem;">—</strong>
+                                            <strong id="intel-make" style="display: block; font-size: 1.1rem;">â€”</strong>
                                         </div>
                                         <div class="detail-item">
                                             <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Model</span>
-                                            <strong id="intel-model" style="display: block; font-size: 1.1rem;">—</strong>
+                                            <strong id="intel-model" style="display: block; font-size: 1.1rem;">â€”</strong>
                                         </div>
                                         <div class="detail-item">
                                             <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Year</span>
-                                            <strong id="intel-year" style="display: block; font-size: 1.1rem;">—</strong>
+                                            <strong id="intel-year" style="display: block; font-size: 1.1rem;">â€”</strong>
                                         </div>
                                         <div class="detail-item">
                                             <span style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Engine</span>
-                                            <strong id="intel-engine" style="display: block; font-size: 1.1rem;">—</strong>
+                                            <strong id="intel-engine" style="display: block; font-size: 1.1rem;">â€”</strong>
                                         </div>
                                     </div>
                                     
                                     <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
                                         <span style="color:var(--text-dim); font-size:0.85rem;">Lifecycle Odometer</span>
-                                        <strong id="intel-odometer" style="font-size:1.2rem; color:var(--brand-primary); font-family: 'Space Grotesk';">— km</strong>
+                                        <strong id="intel-odometer" style="font-size:1.2rem; color:var(--brand-primary); font-family: 'Space Grotesk';">â€” km</strong>
                                     </div>
 
                                     <div style="margin-top:24px; display:flex; gap:12px;">
@@ -491,7 +565,7 @@
                                         <div class="input-wrapper" style="margin-bottom: 0;">
                                             <label style="font-size: 0.65rem; color: var(--text-muted);">Calibration Status</label>
                                             <div style="margin-top: 8px;">
-                                                <span id="intel-profile-status" class="stats-badge success">⚡ ECU Verified</span>
+                                                <span id="intel-profile-status" class="stats-badge" style="opacity: 0.6;">â³ Pending Sync</span>
                                             </div>
                                         </div>
                                     </div>
@@ -500,22 +574,6 @@
                                             <i data-lucide="info" style="width: 14px; margin-right: 4px; vertical-align: middle;"></i>
                                             Manual VIN calibration overrides automatic OBD detection. Use this to correct discrepancies in manufacturer reporting or to activate predictive maintenance for non-OBD assets.
                                         </p>
-                                    </div>
-                                </div>
-
-                                <div class="premium-card">
-                                    <div class="chart-header">
-                                        <h3 class="chart-title"><i data-lucide="shield-check" style="width: 16px;"></i> Safety Intelligence</h3>
-                                    </div>
-                                    <div style="padding: 2px 20px 20px; display: flex; flex-direction: column; gap: 12px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
-                                            <span style="font-size: 0.85rem;">Overspeed Filter</span>
-                                            <span id="intel-overspeed-count" style="font-family: 'Space Grotesk'; font-weight: 700; color: var(--brand-danger);">0 Events</span>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
-                                            <span style="font-size: 0.85rem;">Towing Detection</span>
-                                            <span class="stats-badge" style="opacity: 0.5;">Inactive</span>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -537,17 +595,44 @@
                                 
                                 <div class="premium-card">
                                     <div class="chart-header">
-                                        <h3 class="chart-title">AI Maintenance Prediction</h3>
+                                        <h3 class="chart-title">Fleet Data (FDB)</h3>
                                     </div>
                                     <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
                                         <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1); border-radius: 12px; padding: 16px;">
-                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-success); font-weight: 800;">Next Service Window</div>
-                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;">~ 1,450 km Remaining</div>
+                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-success); font-weight: 800;">Benchmark</div>
+                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;" id="next-service-val">No data</div>
                                         </div>
                                         <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.1); border-radius: 12px; padding: 16px;">
-                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-warning); font-weight: 800;">Brake Pad Life</div>
-                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;">62% Estimated</div>
+                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--brand-warning); font-weight: 800;">Daily Average</div>
+                                            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 4px;" id="brake-life-val">No data</div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ROW 4: Recent Alerts + Safety -->
+                            <div style="margin-top:24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                                <div class="premium-card">
+                                    <div class="chart-header">
+                                        <h3 class="chart-title"><i data-lucide="shield-check" style="width: 16px;"></i> Safety Intelligence</h3>
+                                    </div>
+                                    <div style="padding: 2px 20px 20px; display: flex; flex-direction: column; gap: 12px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                            <span style="font-size: 0.85rem;">Overspeed Events (30d)</span>
+                                            <span id="intel-overspeed-count" style="font-family: 'Space Grotesk'; font-weight: 700; color: var(--brand-danger);">0 Events</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                            <span style="font-size: 0.85rem;">Towing Detection</span>
+                                            <span class="stats-badge" id="intel-towing-status" style="opacity: 0.5;">Inactive</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="premium-card">
+                                    <div class="chart-header">
+                                        <h3 class="chart-title"><i data-lucide="bell" style="width: 16px;"></i> Recent Alerts</h3>
+                                    </div>
+                                    <div id="intel-recent-alerts" style="padding: 12px 20px; max-height: 240px; overflow-y: auto;">
+                                        <div style="padding:16px; text-align:center; color:var(--fleet-muted); font-size:12px;">No recent alerts for this vehicle</div>
                                     </div>
                                 </div>
                             </div>
@@ -560,8 +645,20 @@
                 <!-- Fuel Analytics View -->
                 <div id="view-fuel" class="sub-view hidden-view">
                     <div class="module-content-container">
-                        <div class="module-header-row">
+                        <div class="module-header-row" style="margin-bottom: 24px;">
                             <h3 class="section-title">Fuel Intelligence</h3>
+                            <div style="display:flex; gap:12px; align-items:center;">
+                                <div class="glass-segmented-control">
+                                    <button class="segment-btn active" id="fuel-scope-org" onclick="switchFuelScope('org')">Organization Level</button>
+                                    <button class="segment-btn" id="fuel-scope-vehicle" onclick="switchFuelScope('vehicle')">Vehicle Level</button>
+                                </div>
+                                <div id="fuel-vehicle-selector-wrap" style="display:none; transition: all 0.3s ease;">
+                                    <input type="text" id="fuel-vehicle-search" placeholder="Search vehicle..." oninput="filterFuelDropdown()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; width:200px; margin-bottom:4px;">
+                                    <select id="fuel-vehicle-selector" class="glass-select" onchange="handleFuelVehicleChange()">
+                                        <option value="">Select Vehicle...</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div id="fuel-asset-context" class="stats-badge primary">Global Fleet Summary</div>
                         </div>
 
@@ -601,6 +698,11 @@
                                 <span class="card-label">Fuel Status</span>
                                 <span class="card-value" id="fuel-live-level">--%</span>
                                 <div class="card-trend" id="fuel-method-badge"><i data-lucide="gauge"></i> Awaiting data</div>
+                            </div>
+                            <div class="premium-card mini-stat">
+                                <span class="card-label">Idle Waste (Cost)</span>
+                                <span class="card-value" id="fuel-idle-cost">Rs. 0</span>
+                                <div class="card-trend" id="fuel-idle-time" style="color:var(--brand-warning);"><i data-lucide="clock"></i> 0 min total idle</div>
                                 <div style="margin-top:8px;">
                                     <span class="stats-badge" id="fuel-efficiency-validation">Eco Validation: --</span>
                                 </div>
@@ -611,7 +713,7 @@
                             <div class="premium-card">
                                 <div class="chart-header">
                                     <h3 class="chart-title">Fuel Consumption vs. Distance</h3>
-                                    <div class="stats-badge success" id="efficiency-badge">⚡ ECU Verified</div>
+                                    <div class="stats-badge success" id="efficiency-badge">âš¡ ECU Verified</div>
                                 </div>
                                 <div class="chart-container"><canvas id="fuelConsumptionChart"></canvas></div>
                             </div>
@@ -653,11 +755,11 @@
                                     <div class="score-circle">
                                         <svg viewBox="0 0 36 36" class="circular-chart">
                                             <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            <path class="circle eco-circle" stroke-dasharray="92, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            <text x="18" y="20.35" class="percentage" id="eco-score-val">92</text>
+                                            <path class="circle eco-circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <text x="18" y="20.35" class="percentage" id="eco-score-val">--</text>
                                         </svg>
                                     </div>
-                                    <div class="score-label">Fuel Efficiency Grade: <strong>A+</strong></div>
+                                    <div class="score-label">Fuel Efficiency Grade: <strong id="eco-grade-val">N/A</strong></div>
                                 </div>
                             </div>
                             <div class="premium-card">
@@ -686,6 +788,7 @@
                                                 <th>Distance</th>
                                                 <th>Fuel Used</th>
                                                 <th>Cost (PKR)</th>
+                                                <th>Cost/KM</th>
                                             </tr>
                                         </thead>
                                         <tbody id="trip-cost-body">
@@ -707,116 +810,940 @@
                     </div>
                 </div>
 
-                <!-- Driver Safety View -->
-                <div id="view-safety" class="sub-view hidden-view">
+                <!-- Driver Intelligence View -->
+                <div id="view-driver" class="sub-view hidden-view">
                     <div class="module-content-container">
                         <div class="module-header-row">
-                            <h3 class="section-title">Safety & Behavior</h3>
-                            <div id="safety-asset-context" class="stats-badge warning">Global Fleet Summary</div>
-                        </div>
-                        <div class="safety-dashboard-grid">
-                            <div class="premium-card safety-score-card">
-                                <h3 class="chart-title">AI Safety Scorecard</h3>
-                                <div class="score-display">
-                                    <div class="score-circle">
-                                        <svg viewBox="0 0 36 36" class="circular-chart">
-                                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            <path class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                            <text x="18" y="20.35" class="percentage">85</text>
-                                        </svg>
-                                    </div>
-                                    <div class="score-label">Fleet Safety Grade: <strong>A-</strong></div>
+                            <h3 class="section-title">Driver Intelligence & Analytics</h3>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <div>
+                                    <input type="text" id="driver-vehicle-search" placeholder="Search vehicle..." oninput="filterDriverDropdown()" style="padding:6px 12px; border-radius:8px; border:1px solid #dbe3ee; background:#f8fafc; color:#1e293b; font-size:13px; width:200px; margin-bottom:4px;">
+                                    <select id="driver-vehicle-selector" class="glass-select" onchange="onDriverVehicleChange()" style="min-width:200px;">
+                                        <option value="">Select KE Vehicle...</option>
+                                    </select>
                                 </div>
-                                <div class="radar-chart-container">
-                                    <canvas id="safetyRadarChart"></canvas>
+                                <div style="display:flex; gap:6px;">
+                                    <button class="glass-btn" onclick="openDriverCompareModal()" style="font-size:0.72rem; padding:6px 12px;"><i data-lucide="git-compare" style="width:13px;"></i> Compare</button>
+                                    <button class="glass-btn" onclick="exportDriverLeaderboard()" style="font-size:0.72rem; padding:6px 12px;"><i data-lucide="download" style="width:13px;"></i> Export</button>
                                 </div>
                             </div>
-                            
-                            <div class="premium-card incident-card">
-                                <h3 class="chart-title">Harsh Events Timeline</h3>
-                                <div class="timeline-container" id="safety-timeline">
-                                    <!-- Timeline events -->
+                        </div>
+
+                        <!-- SUMMARY STATS CARDS -->
+                        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px;">
+                            <div class="premium-card" style="padding:18px; text-align:center;">
+                                <div style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Total Drivers</div>
+                                <div id="drv-total-drivers" style="font-size:1.8rem; font-weight:800; color:#6366f1; margin-top:6px;">--</div>
+                            </div>
+                            <div class="premium-card" style="padding:18px; text-align:center;">
+                                <div style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Avg Eco Score</div>
+                                <div id="drv-avg-score" style="font-size:1.8rem; font-weight:800; color:#10b981; margin-top:6px;">--</div>
+                            </div>
+                            <div class="premium-card" style="padding:18px; text-align:center;">
+                                <div style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Total Events (30d)</div>
+                                <div id="drv-total-events" style="font-size:1.8rem; font-weight:800; color:#f59e0b; margin-top:6px;">--</div>
+                            </div>
+                            <div class="premium-card" style="padding:18px; text-align:center;">
+                                <div style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Harsh Braking (30d)</div>
+                                <div id="drv-brakes-30d" style="font-size:1.8rem; font-weight:800; color:#ef4444; margin-top:6px;">--</div>
+                            </div>
+                            <div class="premium-card" style="padding:18px; text-align:center;">
+                                <div style="font-size:0.68rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Safe Drivers</div>
+                                <div id="drv-safe-count" style="font-size:1.8rem; font-weight:800; color:#10b981; margin-top:6px;">--</div>
+                            </div>
+                        </div>
+
+                        <div class="driver-intelligence-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-bottom:24px;">
+                            <!-- DRIVER PROFILE CARD -->
+                            <div class="premium-card" id="driver-profile-card">
+                                <h3 class="chart-title"><i data-lucide="user-check"></i> Driver Profile</h3>
+                                <div class="driver-identity-row" style="display:flex; gap:20px; align-items:center; padding:20px; background:#f8fafc; border-radius:16px; margin-bottom:20px;">
+                                    <div id="intel-driver-avatar" style="width:64px; height:64px; background:linear-gradient(135deg,#818cf8,#6366f1); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; font-weight:800; flex-shrink:0;">D</div>
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                            <h2 id="intel-driver-name" style="margin:0; font-family:'Space Grotesk'; color:#1e293b; font-size:1.1rem;">No Driver Selected</h2>
+                                            <span id="intel-assignment-badge" style="font-size:0.6rem; padding:2px 8px; border-radius:10px; background:rgba(16,185,129,0.1); color:#10b981; font-weight:600; display:none;">Auto Assigned</span>
+                                        </div>
+                                        <p id="intel-vehicle-name" style="margin:4px 0 0; color:#6366f1; font-weight:600; font-size:0.85rem;">Select a vehicle to view driver</p>
+                                        <div style="display:flex; gap:15px; margin-top:8px; flex-wrap:wrap;">
+                                            <span style="font-size:0.72rem; color:#94a3b8;"><i data-lucide="hash" style="width:11px;"></i> ID: <span id="intel-driver-id" style="color:#475569;">-</span></span>
+                                            <span style="font-size:0.72rem; color:#94a3b8;"><i data-lucide="clock" style="width:11px;"></i> Last Seen: <span id="intel-last-activity" style="color:#475569;">-</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style="padding:20px; background:linear-gradient(135deg,rgba(99,102,241,0.04),rgba(139,92,246,0.04)); border:1px solid rgba(99,102,241,0.1); border-radius:16px;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                                        <h4 style="margin:0; font-family:'Space Grotesk'; color:#1e293b;">Eco Score Engine</h4>
+                                        <div id="intel-eco-score" style="font-size:2rem; font-weight:800; color:#10b981; font-family:'Space Grotesk';">100</div>
+                                    </div>
+                                    <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden;">
+                                        <div id="intel-score-bar" style="width:100%; height:100%; background:#10b981; transition:0.5s; border-radius:4px;"></div>
+                                    </div>
+                                    <p style="font-size:0.68rem; color:#94a3b8; margin-top:8px;">Starting Score: 100. Deductions: braking -4, accel -3, corner -4, idle -1/5min.</p>
+                                </div>
+                            </div>
+
+                            <!-- DRIVER STATISTICS PANEL -->
+                            <div class="premium-card">
+                                <h3 class="chart-title"><i data-lucide="bar-chart-3"></i> Behavior Statistics</h3>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                                    <div style="padding:14px; background:#fef2f2; border:1px solid rgba(239,68,68,0.1); border-radius:12px;">
+                                        <div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:6px;">Harsh Braking</div>
+                                        <div style="display:flex; align-items:baseline; gap:6px;">
+                                            <span id="stat-braking-total" style="font-size:1.4rem; font-weight:800; color:#ef4444;">0</span>
+                                            <span style="font-size:0.65rem; color:#94a3b8;">events</span>
+                                        </div>
+                                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
+                                            <div style="display:flex; justify-content:space-between; font-size:0.62rem; color:#64748b;">
+                                                <span>Penalized</span>
+                                                <span id="stat-braking-penalized" style="color:#ef4444; font-weight:700;">0</span>
+                                            </div>
+                                            <div style="display:flex; justify-content:space-between; font-size:0.62rem; color:#64748b;">
+                                                <span>Grace (free)</span>
+                                                <span id="stat-braking-grace" style="color:#10b981; font-weight:700;">0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="padding:14px; background:#fffbeb; border:1px solid rgba(245,158,11,0.1); border-radius:12px;">
+                                        <div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:6px;">Harsh Acceleration</div>
+                                        <span id="stat-acceleration" style="font-size:1.4rem; font-weight:800; color:#f59e0b;">0</span>
+                                        <div style="font-size:0.62rem; color:#94a3b8; margin-top:4px;">-3 pts each</div>
+                                    </div>
+                                    <div style="padding:14px; background:#fff7ed; border:1px solid rgba(249,115,22,0.1); border-radius:12px;">
+                                        <div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:6px;">Harsh Cornering</div>
+                                        <span id="stat-cornering" style="font-size:1.4rem; font-weight:800; color:#f97316;">0</span>
+                                        <div style="font-size:0.62rem; color:#94a3b8; margin-top:4px;">-4 pts each</div>
+                                    </div>
+                                    <div style="padding:14px; background:#f0fdf4; border:1px solid rgba(16,185,129,0.1); border-radius:12px;">
+                                        <div style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin-bottom:6px;">Excessive Idle</div>
+                                        <div style="display:flex; align-items:baseline; gap:6px;">
+                                            <span id="stat-idle-penalty" style="font-size:1.4rem; font-weight:800; color:#10b981;">0</span>
+                                            <span id="stat-idle-mins" style="font-size:0.65rem; color:#94a3b8;">0 min</span>
+                                        </div>
+                                        <div style="font-size:0.62rem; color:#94a3b8; margin-top:4px;">-1 pt / 5 min</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DRIVER LEADERBOARD -->
+                        <div class="premium-card">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                                <h3 class="chart-title" style="margin:0;"><i data-lucide="trophy"></i> Driver Performance Leaderboard</h3>
+                                <div style="display:flex; gap:6px; align-items:center;">
+                                    <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Period:</span>
+                                    <button class="driver-period-btn active" data-days="30" onclick="changeDriverPeriod(30, this)" style="padding:4px 10px; border-radius:6px; border:1px solid #dbe3ee; background:#f8fafc; color:#475569; font-size:0.68rem; font-weight:600; cursor:pointer; transition:0.2s;">30 Days</button>
+                                    <button class="driver-period-btn" data-days="7" onclick="changeDriverPeriod(7, this)" style="padding:4px 10px; border-radius:6px; border:1px solid #dbe3ee; background:#ffffff; color:#94a3b8; font-size:0.68rem; font-weight:600; cursor:pointer; transition:0.2s;">7 Days</button>
+                                    <button class="driver-period-btn" data-days="0" onclick="changeDriverPeriod(0, this)" style="padding:4px 10px; border-radius:6px; border:1px solid #dbe3ee; background:#ffffff; color:#94a3b8; font-size:0.68rem; font-weight:600; cursor:pointer; transition:0.2s;">All Time</button>
+                                </div>
+                            </div>
+                            <div style="max-height:420px; overflow-y:auto;">
+                                <table style="width:100%; border-collapse:collapse; text-align:left;">
+                                    <thead style="position:sticky; top:0; background:#fff; z-index:1;">
+                                        <tr style="border-bottom:2px solid #e2e8f0; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b;">
+                                            <th style="padding:12px 14px; font-weight:700;">Rank</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Driver Name</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Vehicle</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Eco Score</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Braking</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Accel</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Corner</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Trips</th>
+                                            <th style="padding:12px 14px; font-weight:700;">Performance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="driver-leaderboard-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- DRIVER COMPARISON SECTION -->
+                        <div class="premium-card" id="driver-compare-section" style="margin-top:24px; display:none;">
+                            <h3 class="chart-title"><i data-lucide="git-compare"></i> Driver Comparison</h3>
+                            <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:start;">
+                                <div id="compare-driver-a" style="padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Driver A</div>
+                                </div>
+                                <div style="display:flex; align-items:center; padding-top:60px; color:#94a3b8; font-weight:700; font-size:1.2rem;">VS</div>
+                                <div id="compare-driver-b" style="padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Driver B</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Maintenance View -->
+
+                <!-- ============================================================ -->
+                <!-- DATA IMPORT & FLEET DATABASE MODULE (REDESIGNED) -->
+                <!-- ============================================================ -->
+                <div id="view-data-import" class="sub-view hidden-view">
+                    <div class="module-content-container">
+                        <div class="module-header-row" style="margin-bottom: 24px; align-items: flex-end;">
+                            <div>
+                                <h3 class="section-title">Fleet Data Management</h3>
+                                <p style="color:var(--text-dim); font-size:0.85rem; margin:4px 0 0;">Manage master records, vehicle benchmarks, and daily operations logs.</p>
+                            </div>
+                            <div style="margin-left: auto;">
+                                <div class="glass-segmented-control">
+                                    <button class="segment-btn active" onclick="switchFdbTab('overview', this)">📊 Overview</button>
+                                    <button class="segment-btn" onclick="switchFdbTab('upload', this)">📥 Import FDB</button>
+                                    <button class="segment-btn" onclick="switchFdbTab('explorer', this)">📋 Data Explorer</button>
+                                    <button class="segment-btn" onclick="switchFdbTab('fuel-txns', this)">⛽ Fuel Txns</button>
+                                    <button class="segment-btn" onclick="switchFdbTab('kemis', this)">📊 KEMIS MIS</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="fdb-tab-overview" class="fdb-sub-tab">
+                            <div class="stats-row">
+                                <div class="premium-card mini-stat primary-glow">
+                                    <span class="card-label">Total Registered Vehicles</span>
+                                    <span class="card-value" id="fdb-stat-total">--</span>
+                                    <div class="card-trend"><i data-lucide="database"></i> Master FDB Records</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Benchmark Coverage</span>
+                                    <span class="card-value" id="fdb-stat-benchmark">--</span>
+                                    <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="check-circle-2"></i> KMPL Data Ready</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Shift Data Coverage</span>
+                                    <span class="card-value" id="fdb-stat-shift">--</span>
+                                    <div class="card-trend" style="color:var(--brand-primary);"><i data-lucide="clock"></i> Op-Hours Defined</div>
+                                </div>
+                            </div>
+                            <div class="charts-grid-equal" style="margin-top:24px;">
+                                <div class="premium-card" style="padding:20px;">
+                                    <div class="chart-header"><h3 class="chart-title">Vehicles by Category</h3></div>
+                                    <div style="display:flex; align-items:center; gap:20px; margin-top:12px;">
+                                        <canvas id="fdb-category-donut" width="160" height="160" style="flex-shrink:0;"></canvas>
+                                        <div id="fdb-category-legend" style="flex:1; display:flex; flex-direction:column; gap:8px;"></div>
+                                    </div>
+                                </div>
+                                <div class="premium-card" style="padding:20px;">
+                                    <div class="chart-header"><h3 class="chart-title">Top Fleet Vendors</h3></div>
+                                    <div style="display:flex; align-items:center; gap:20px; margin-top:12px;">
+                                        <canvas id="fdb-vendor-donut" width="160" height="160" style="flex-shrink:0;"></canvas>
+                                        <div id="fdb-vendor-legend" style="flex:1; display:flex; flex-direction:column; gap:8px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:24px;">
+                                <div class="dash-v2-overview-section">
+                                    <div class="dash-v2-donut-card" style="flex:1; min-width:300px;">
+                                        <div class="dash-v2-card-header">
+                                            <h2 style="font-family:'Space Grotesk';">KE Fleet Live Status</h2>
+                                            <div class="stats-badge primary" id="ke-data-badge">Loading...</div>
+                                        </div>
+                                        <div style="padding:0 20px 20px;">
+                                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+                                                <div class="premium-card mini-stat" style="padding:16px;">
+                                                    <span class="card-label" style="font-size:0.65rem;">Total KE</span>
+                                                    <span class="card-value" style="font-size:1.4rem;" id="ke-total-count">--</span>
+                                                </div>
+                                                <div class="premium-card mini-stat" style="padding:16px;">
+                                                    <span class="card-label" style="font-size:0.65rem;">Online</span>
+                                                    <span class="card-value" style="font-size:1.4rem;color:#059669;" id="ke-online-count">--</span>
+                                                </div>
+                                                <div class="premium-card mini-stat" style="padding:16px;">
+                                                    <span class="card-label" style="font-size:0.65rem;">Offline</span>
+                                                    <span class="card-value" style="font-size:1.4rem;color:#dc2626;" id="ke-offline-count">--</span>
+                                                </div>
+                                                <div class="premium-card mini-stat" style="padding:16px;">
+                                                    <span class="card-label" style="font-size:0.65rem;">With MIS Data</span>
+                                                    <span class="card-value" style="font-size:1.4rem;color:#06b6d4;" id="ke-mis-count">--</span>
+                                                </div>
+                                            </div>
+                                            <div id="ke-online-list" style="max-height:200px;overflow-y:auto;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="dash-v2-insights-card" style="flex:1; min-width:300px;">
+                                        <div class="dash-v2-card-header">
+                                            <h2 style="font-family:'Space Grotesk';">Quick MIS Access</h2>
+                                        </div>
+                                        <div style="padding:0 20px 20px;">
+                                            <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">Click any vehicle name to view full MIS report</p>
+                                            <div id="ke-mis-quick-list" style="max-height:240px;overflow-y:auto;"></div>
+                                            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-light);">
+                                                <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;font-weight:600;">GENERATE MIS FROM GPS DATA</p>
+                                                <div style="display:flex;gap:8px;">
+                                                    <input type="text" id="generate-mis-input" placeholder="Enter KE vehicle name (e.g. CX-2192)" style="flex:1;padding:8px 12px;border:1px solid var(--border-light);border-radius:8px;background:var(--card-bg,var(--surface));color:var(--text-primary);font-size:0.8rem;">
+                                                    <button onclick="generateMISFromDB(document.getElementById('generate-mis-input').value)" class="glass-btn primary-glow" style="padding:8px 16px;font-size:0.8rem;white-space:nowrap;">Generate</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="fdb-tab-upload" class="fdb-sub-tab" style="display:none;">
+                            <div class="premium-card" style="max-width: 800px; margin: 0 auto; padding: 40px; text-align:center;">
+                                <div class="upload-container" id="fdb-drop-zone" style="border:2px dashed var(--border-light); padding:60px 40px; border-radius:24px; cursor:pointer;">
+                                    <i data-lucide="upload-cloud" style="width:48px; height:48px; color:var(--brand-success); margin-bottom:16px;"></i>
+                                    <p style="font-weight:700;">Drag & drop Master FDB here</p>
+                                    <input type="file" id="fdb-file-input" accept=".xlsx,.xls" style="display:none;">
+                                    <button class="glass-btn primary-glow" onclick="document.getElementById('fdb-file-input').click()">Choose Excel</button>
+                                </div>
+                                <div id="fdb-upload-status" style="display:none; margin-top:20px;"><div class="loader-spinner"></div> <span id="fdb-upload-msg"></span></div>
+                                <div id="fdb-upload-result" style="display:none; margin-top:20px;"></div>
+                            </div>
+                        </div>
+
+                        <div id="fdb-tab-explorer" class="fdb-sub-tab" style="display:none;">
+                            <div class="premium-card section-card">
+                                <div class="section-header" style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                                    <h3 class="section-title">Master Fleet Database</h3>
+                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                        <div class="matrix-filter-group" style="display:flex; gap:4px;">
+                                            <button type="button" class="matrix-filter-pill active" onclick="filterFdbByStatus('', this)">All</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterFdbByStatus('online', this)" style="color:var(--brand-success);">Online</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterFdbByStatus('offline', this)" style="color:var(--text-dim);">Offline</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterFdbByStatus('unmapped', this)" style="color:var(--brand-warning);">Unmapped</button>
+                                        </div>
+                                        <div class="search-wrap" style="width:260px; position:relative;">
+                                            <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
+                                            <input type="text" id="fdb-explorer-search" class="glass-input" placeholder="Search Reg / IMEI / Group..." onkeyup="filterFdbTable()" style="padding-left:36px; width:100%;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="fdb-explorer-count" style="padding:0 20px 8px; font-size:0.75rem; color:var(--text-dim);"></div>
+                                <table class="premium-table"><thead id="fdb-explorer-head"><tr><th>Reg</th><th>IMEI</th><th>Group</th><th>Cat</th><th>Vendor</th><th>Bench</th><th>Live Status</th><th>Last Signal</th><th>Action</th></tr></thead><tbody id="fdb-explorer-body"></tbody></table>
+                            </div>
+                        </div>
+
+                        <div id="fdb-tab-fuel-txns" class="fdb-sub-tab" style="display:none;">
+                            <div class="stats-row" style="margin-bottom:20px;">
+                                <div class="premium-card mini-stat primary-glow">
+                                    <span class="card-label">Total Transactions</span>
+                                    <span class="card-value" id="fuel-txn-count">--</span>
+                                    <div class="card-trend"><i data-lucide="receipt"></i> Fuel Card Records</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Total Fuel (Liters)</span>
+                                    <span class="card-value" id="fuel-txn-liters">--</span>
+                                    <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="droplets"></i> Hi Cetane + Premier</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Total Amount (PKR)</span>
+                                    <span class="card-value" id="fuel-txn-amount">--</span>
+                                    <div class="card-trend" style="color:var(--brand-primary);"><i data-lucide="banknote"></i> Fleet Fuel Cost</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Unique Vehicles</span>
+                                    <span class="card-value" id="fuel-txn-vehicles">--</span>
+                                    <div class="card-trend"><i data-lucide="truck"></i> Fueled Today</div>
+                                </div>
+                            </div>
+
+                            <div class="premium-card" style="max-width:800px; margin:0 auto 20px; padding:32px; text-align:center;">
+                                <div class="upload-container" id="fuel-drop-zone" style="border:2px dashed var(--border-light); padding:40px; border-radius:16px; cursor:pointer;">
+                                    <i data-lucide="upload-cloud" style="width:40px; height:40px; color:var(--brand-success); margin-bottom:12px;"></i>
+                                    <p style="font-weight:700;">Drag & drop Transaction Report Excel here</p>
+                                    <input type="file" id="fuel-file-input" accept=".xlsx,.xls" style="display:none;">
+                                    <button class="glass-btn primary-glow" style="margin-top:12px;" onclick="document.getElementById('fuel-file-input').click()">Choose Excel</button>
+                                </div>
+                                <div id="fuel-upload-status" style="display:none; margin-top:16px;"><div class="loader-spinner"></div> <span id="fuel-upload-msg"></span></div>
+                                <div id="fuel-upload-result" style="display:none; margin-top:16px;"></div>
+                            </div>
+
+                            <div class="premium-card section-card">
+                                <div class="section-header" style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                                    <h3 class="section-title">Fuel Transaction Log</h3>
+                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                        <div class="matrix-filter-group" style="display:flex; gap:4px;">
+                                            <button type="button" class="matrix-filter-pill active" onclick="filterFuelByProduct('', this)">All</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterFuelByProduct('Hi Cetane', this)">Hi Cetane</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterFuelByProduct('Premier Euro5', this)">Premier Euro5</button>
+                                        </div>
+                                        <div class="search-wrap" style="width:240px; position:relative;">
+                                            <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
+                                            <input type="text" id="fuel-txn-search" class="glass-input" placeholder="Search Reg / Outlet..." onkeyup="searchFuelTransactions()" style="padding-left:36px; width:100%;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="fuel-txn-count-label" style="padding:0 20px 8px; font-size:0.75rem; color:var(--text-dim);"></div>
+                                <table class="premium-table"><thead><tr><th>Vehicle</th><th>Date</th><th>Time</th><th>Outlet</th><th>Product</th><th>Liters</th><th>Amount (PKR)</th></tr></thead><tbody id="fuel-txn-body"></tbody></table>
+                                <div id="fuel-txn-pagination" style="padding:16px 20px; display:flex; justify-content:center; gap:8px;"></div>
+                            </div>
+                        </div>
+
+                        <!-- KEMIS MIS Tab -->
+                        <div id="fdb-tab-kemis" class="fdb-sub-tab" style="display:none;">
+                            <div class="stats-row" style="margin-bottom:20px;">
+                                <div class="premium-card mini-stat primary-glow">
+                                    <span class="card-label">Total Records</span>
+                                    <span class="card-value" id="kemis-stat-total">--</span>
+                                    <div class="card-trend"><i data-lucide="file-text"></i> MIS Daily Data</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Unique Vehicles</span>
+                                    <span class="card-value" id="kemis-stat-vehicles">--</span>
+                                    <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="truck"></i> Fleet Coverage</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Total KM</span>
+                                    <span class="card-value" id="kemis-stat-km">--</span>
+                                    <div class="card-trend" style="color:var(--brand-primary);"><i data-lucide="route"></i> Distance Traveled</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Total Fuel (L)</span>
+                                    <span class="card-value" id="kemis-stat-fuel">--</span>
+                                    <div class="card-trend"><i data-lucide="fuel"></i> Consumed + Drawn</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Avg KM / Vehicle / Day</span>
+                                    <span class="card-value" id="kemis-stat-avgkm">--</span>
+                                    <div class="card-trend" style="color:var(--brand-warning);"><i data-lucide="gauge"></i> Fleet Efficiency</div>
+                                </div>
+                                <div class="premium-card mini-stat">
+                                    <span class="card-label">Avg Benchmark (km/L)</span>
+                                    <span class="card-value" id="kemis-stat-avgbench">--</span>
+                                    <div class="card-trend" style="color:var(--brand-success);"><i data-lucide="target"></i> Fuel Efficiency</div>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
+                                <div class="premium-card" style="min-height:280px; display:flex; flex-direction:column;">
+                                    <div class="chart-header" style="margin-bottom:8px;"><h3 class="chart-title">Categories</h3></div>
+                                    <div id="kemis-category-stats" style="flex:1; display:flex; flex-direction:column; gap:14px; overflow-y:auto;"></div>
+                                </div>
+                                <div class="premium-card" style="min-height:280px; display:flex; flex-direction:column;">
+                                    <div class="chart-header" style="margin-bottom:8px;"><h3 class="chart-title">Top Groups</h3></div>
+                                    <div id="kemis-group-stats" style="flex:1; display:flex; flex-direction:column; gap:14px; overflow-y:auto;"></div>
+                                </div>
+                                <div class="premium-card" style="min-height:280px; display:flex; flex-direction:column;">
+                                    <div class="chart-header" style="margin-bottom:8px;">
+                                        <h3 class="chart-title">Top Vendors</h3>
+                                        <span style="font-size:0.7rem; color:var(--text-dim);">Click to filter</span>
+                                    </div>
+                                    <div id="kemis-vendor-stats" style="flex:1; display:flex; flex-direction:column; gap:10px; overflow-y:auto;"></div>
+                                </div>
+                            </div>
+
+                            <div class="premium-card" style="margin-bottom:20px; overflow:visible;">
+                                <div class="chart-header" style="flex-wrap:wrap; gap:12px;">
+                                    <h3 class="chart-title">Daily Fleet Performance</h3>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <label for="kemis-month-select" style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">Month:</label>
+                                        <select id="kemis-month-select" onchange="filterKemisTrendByMonth()" style="background:var(--fleet-surface); border:1px solid var(--border-light); color:var(--text-primary); border-radius:8px; padding:5px 10px; font-size:0.82rem; cursor:pointer; outline:none;">
+                                            <option value="">All Months</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="padding:20px 8px 8px 8px; position:relative; overflow:visible;">
+                                    <canvas id="kemis-trend-chart" height="340"></canvas>
+                                    <div id="kemis-trend-tooltip" style="display:none; position:absolute; background:rgba(15,15,25,0.96); border:1px solid var(--border-light); border-radius:12px; padding:14px 18px; font-size:0.8rem; pointer-events:none; z-index:10; min-width:210px; box-shadow:0 8px 32px rgba(0,0,0,0.5); line-height:1.7; backdrop-filter:blur(10px);"></div>
+                                </div>
+                                <div style="display:flex; justify-content:center; gap:28px; padding:8px 0 16px 0; border-top:1px solid var(--border-light);">
+                                    <div style="display:flex; align-items:center; gap:6px;"><div style="width:14px; height:10px; background:linear-gradient(180deg,#06b6d4,#0891b2); border-radius:2px;"></div><span style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">Total KM</span></div>
+                                    <div style="display:flex; align-items:center; gap:6px;"><div style="width:14px; height:10px; background:linear-gradient(180deg,#22c55e,#ef4444); border-radius:2px;"></div><span style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">Efficiency (km/L)</span></div>
+                                </div>
+                            </div>
+
+                            <div class="premium-card" style="margin-bottom:20px;">
+                                <div class="chart-header">
+                                    <h3 class="chart-title">Fuel Efficiency Ranking — Top & Bottom Vehicles</h3>
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <button id="eff-top-btn" class="glass-btn small primary-glow" onclick="loadKemisEfficiency('top')">Top 15</button>
+                                        <button id="eff-bottom-btn" class="glass-btn small" onclick="loadKemisEfficiency('bottom')">Bottom 15</button>
+                                    </div>
+                                </div>
+                                <div id="kemis-efficiency-body" style="margin-top:12px;">
+                                    <div style="text-align:center; padding:30px; color:var(--text-dim);">Loading...</div>
+                                </div>
+                            </div>
+
+                            <div class="premium-card section-card">
+                                <div class="section-header" style="padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                                    <h3 class="section-title">KEMIS MIS Data</h3>
+                                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                        <div id="kemis-vendor-badge" style="display:none; background:rgba(var(--brand-primary-rgb,99,102,241),0.15); border:1px solid var(--brand-primary); color:var(--brand-primary); padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:700; cursor:pointer;" onclick="filterKemisByVendor('')">Vendor: <span id="kemis-vendor-name"></span> &times;</div>
+                                        <div class="matrix-filter-group" style="display:flex; gap:4px;">
+                                            <button type="button" class="matrix-filter-pill active" onclick="filterKemisByRemarks('', this)">All</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterKemisByRemarks('Reporting', this)">Reporting</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterKemisByRemarks('Not Applicable', this)">N/A</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterKemisByRemarks('TNR', this)">TNR</button>
+                                            <button type="button" class="matrix-filter-pill" onclick="filterKemisByRemarks('ER', this)">ER</button>
+                                        </div>
+                                        <div style="display:flex; align-items:center; gap:6px; background:var(--card-bg); border:1px solid var(--border-light); border-radius:10px; padding:4px 10px;">
+                                            <i data-lucide="calendar" style="width:14px; color:var(--brand-primary);"></i>
+                                            <input type="date" id="kemis-search-date-from" class="glass-input" style="border:none; background:transparent; width:120px; padding:4px 0; font-size:0.8rem; color:var(--text-primary);">
+                                            <span style="color:var(--text-dim); font-size:0.75rem;">to</span>
+                                            <input type="date" id="kemis-search-date-to" class="glass-input" style="border:none; background:transparent; width:120px; padding:4px 0; font-size:0.8rem; color:var(--text-primary);">
+                                            <button class="glass-btn small" style="padding:4px 8px; font-size:0.7rem;" onclick="applyKemisDateRange()">Apply</button>
+                                            <button id="kemis-generate-btn" class="glass-btn small" style="padding:4px 10px; font-size:0.7rem; display:flex; align-items:center; gap:6px; background:rgba(var(--brand-success-rgb,34,197,94),0.15); border:1px solid var(--brand-success); color:var(--brand-success);" onclick="triggerBatchGenerate()">
+                                                <i data-lucide="cpu" style="width:12px;"></i> Generate from GPS
+                                            </button>
+                                            <button class="glass-btn small" style="padding:4px 12px; font-size:0.7rem; display:flex; align-items:center; gap:6px; background:rgba(var(--brand-primary-rgb,99,102,241),0.15); border:1px solid var(--brand-primary); color:var(--brand-primary); font-weight:700;" onclick="openMonthlyMIS()">
+                                                <i data-lucide="bar-chart-3" style="width:12px;"></i> Monthly Report
+                                            </button>
+                                        </div>
+                                        <div class="search-wrap" style="width:260px; position:relative;">
+                                            <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
+                                            <input type="text" id="kemis-search" class="glass-input" placeholder="Search Vehicle / Group / Cluster..." onkeyup="searchKemisData()" style="padding-left:36px; width:100%;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="kemis-count-label" style="padding:0 20px 8px; font-size:0.75rem; color:var(--text-dim);"></div>
+                                <div style="overflow-x:auto;">
+                                    <table class="premium-table" style="min-width:1400px;">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Vehicle</th>
+                                                <th>Hired/Own</th>
+                                                <th>Vendor</th>
+                                                <th>Category</th>
+                                                <th>Group</th>
+                                                <th>Cluster</th>
+                                                <th>IBC</th>
+                                                <th>Shift Hrs</th>
+                                                <th>Shift Timing</th>
+                                                <th>On/Off Road</th>
+                                                <th>Benchmark</th>
+                                                <th>Peak Hour KM</th>
+                                                <th>Peak Off KM</th>
+                                                <th>Total KM</th>
+                                                <th>Fuel Drawn</th>
+                                                <th>Fuel Consumed</th>
+                                                <th>Difference</th>
+                                                <th>Excess Idling</th>
+                                                <th>Harsh Brake</th>
+                                                <th>Speed Violation</th>
+                                                <th>Travel Time</th>
+                                                <th>Stop Time</th>
+                                                <th>Remarks</th>
+                                                <th>Location</th>
+                                                <th>Polls</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="kemis-body"></tbody>
+                                    </table>
+                                </div>
+                                <div id="kemis-pagination" style="padding:16px 20px; display:flex; justify-content:center; gap:8px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance View (Restored) -->
                 <div id="view-maintenance" class="sub-view hidden-view">
                     <div class="module-content-container">
-                        <div class="module-header-row">
-                            <h3 class="section-title">Maintenance Center</h3>
-                            <div id="maint-asset-context" class="stats-badge success">Global Fleet Summary</div>
+                        <div class="module-header-row"><h3 class="section-title">Maintenance & Workshop Control</h3></div>
+                        <div class="stats-row">
+                            <div class="premium-card mini-stat"><span class="card-label">Active Workshop Jobs</span><span class="card-value">0</span></div>
+                            <div class="premium-card mini-stat"><span class="card-label">Overdue Service</span><span class="card-value">0</span></div>
                         </div>
-                        <div class="maintenance-grid">
-                            <div class="premium-card maintenance-list">
-                                <div class="section-header">
-                                    <h3 class="chart-title">Active Diagnostics (DTC)</h3>
-                                    <span class="stats-badge danger">3 Critical</span>
-                                </div>
-                                <div class="dtc-list" id="active-dtc-list">
-                                    <!-- DTC codes injected here -->
-                                </div>
-                            </div>
-                            
-                            <div class="premium-card forecasting-card">
-                                <h3 class="chart-title">Maintenance Forecasting</h3>
-                                <div class="forecast-timeline" id="maintenance-forecast">
-                                    <!-- Forecast items -->
-                                </div>
-                            </div>
+                        <div class="premium-card" style="margin-top:24px; padding:40px; text-align:center; color:var(--text-dim);">
+                             <i data-lucide="cog" style="width:48px; opacity:0.1; margin-bottom:12px;"></i>
+                             <p>Maintenance planning module is active. Load vehicle telemetry to see predictions.</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Map View -->
-                <div id="view-map" class="sub-view hidden-view">
-                    <div class="map-layout">
-                        <!-- Vehicle Sidebar -->
-                        <div class="map-sidebar" id="map-asset-sidebar">
-                            <div class="floating-toggle-btn" id="toggle-map-sidebar" title="Toggle Fleet Sidebar">
-                                <i data-lucide="chevron-left"></i>
+                <!-- Alerts Monitor View -->
+                <div id="view-alerts" class="sub-view hidden-view">
+                    <div class="fleet-v2-container">
+                        <div class="dash-v2-card-header" style="margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Alerts</h1>
+                                <p style="color:var(--text-dim);">All alerts are saved permanently. Filter by type, severity, date, or vehicle.</p>
                             </div>
-                            <div class="sidebar-header">
-                                <h2><span class="live-dot-pulse"></span> Live Fleet</h2>
-                            </div>
-                            <div class="sidebar-search">
-                                <div class="sidebar-search-wrap">
-                                    <i data-lucide="search"></i>
-                                    <input type="text" id="map-vehicle-search" placeholder="Search vehicles or ID...">
-                                </div>
-                            </div>
-                            <div class="map-vehicle-list" id="map-vehicle-list">
-                                <!-- Vehicles will be injected here -->
+                            <div style="display:flex; gap:10px;">
+                                <button class="glass-btn secondary" onclick="markAllAlertsRead()" style="padding:10px 20px;">
+                                    <i data-lucide="check-check" style="width:14px; margin-right:6px;"></i> Mark All Read
+                                </button>
+                                <button class="glass-btn primary" onclick="openCustomAlertForm()" style="padding:10px 20px;">
+                                    <i data-lucide="plus-circle" style="width:14px; margin-right:6px;"></i> Custom Alert
+                                </button>
+                                <button class="glass-btn primary" onclick="_alertsSummaryLoaded=false; loadAlertsPage()" style="padding:10px 20px;">
+                                    <i data-lucide="refresh-cw" style="width:14px; margin-right:6px;"></i> Refresh
+                                </button>
                             </div>
                         </div>
-                        
-                        <!-- Map Container -->
-                        <div class="map-container-wrap">
-                            <div id="live-map"></div>
-                            
-                            <!-- Premium Map Controls -->
-                            <div class="map-controls-group">
-                                <div class="map-glass-panel">
-                                    <div class="layer-switcher-compact">
-                                        <button class="layer-toggle-btn active" id="btn-layer-dark">Dark</button>
-                                        <button class="layer-toggle-btn" id="btn-layer-light">Light</button>
-                                        <button class="layer-toggle-btn" id="btn-layer-satellite">Satellite</button>
-                                    </div>
+
+                        <!-- Alert Stats Cards -->
+                        <div id="alerts-page-stats" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:24px;"></div>
+
+                        <!-- Alert Dashboard Cards -->
+                        <div id="alerts-dashboard-cards" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:16px;"></div>
+
+                        <!-- Alert Daily Trend Chart -->
+                        <div id="alerts-trend-chart" style="margin-bottom:24px;"></div>
+
+                        <!-- Filters -->
+                        <div class="fleet-matrix-card premium" style="margin-top:0; margin-bottom:20px;">
+                            <div style="display:flex; gap:12px; padding:16px 20px; flex-wrap:wrap; align-items:center;">
+                                <select id="alerts-page-type" onchange="loadAlertsPage()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                                    <option value="">All Types</option>
+                                    <optgroup label="Driving Behavior">
+                                        <option value="hard_acceleration">Hard Acceleration</option>
+                                        <option value="hard_braking">Hard Braking</option>
+                                        <option value="hard_cornering">Hard Cornering</option>
+                                        <option value="excessive_idle">Excessive Idle</option>
+                                        <option value="idle_alert">Idle Alert</option>
+                                    </optgroup>
+                                    <optgroup label="Speed">
+                                        <option value="speed_alert">Speed Alert</option>
+                                        <option value="overspeed">Overspeed</option>
+                                    </optgroup>
+                                    <optgroup label="Safety">
+                                        <option value="accident">Accident</option>
+                                        <option value="fatigue_driving">Fatigue Driving</option>
+                                        <option value="jamming">GPS Jamming</option>
+                                    </optgroup>
+                                    <optgroup label="Vehicle Status">
+                                        <option value="device_moving">Vehicle Moving</option>
+                                        <option value="device_stopped">Vehicle Stopped</option>
+                                        <option value="ignition_on">Ignition On</option>
+                                        <option value="ignition_off">Ignition Off</option>
+                                    </optgroup>
+                                    <optgroup label="Device">
+                                        <option value="device_offline">Device Offline</option>
+                                        <option value="device_online">Device Online</option>
+                                        <option value="low_battery">Low Battery</option>
+                                        <option value="power_off">Power Off</option>
+                                        <option value="fault">Device Fault</option>
+                                    </optgroup>
+                                    <optgroup label="Fleet">
+                                        <option value="imei_missing">IMEI Missing</option>
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="driver_changed">Driver Changed</option>
+                                    </optgroup>
+                                    <optgroup label="Geofence">
+                                        <option value="geofence_enter">Geofence Enter</option>
+                                        <option value="geofence_exit">Geofence Exit</option>
+                                    </optgroup>
+                                    <optgroup label="Custom">
+                                        <option value="custom_alert">Custom Alert</option>
+                                    </optgroup>
+                                </select>
+                                <select id="alerts-page-severity" onchange="loadAlertsPage()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                                    <option value="">All Severity</option>
+                                    <option value="critical">Critical</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="info">Info</option>
+                                </select>
+                                <input id="alerts-page-date-from" type="date" onchange="loadAlertsPage()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                                <span style="color:var(--fleet-muted);">to</span>
+                                <input id="alerts-page-date-to" type="date" onchange="loadAlertsPage()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                                <input id="alerts-page-vehicle" type="text" placeholder="Search vehicle..." oninput="debounceAlertsPageSearch()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; width:180px;">
+                                <select id="alerts-page-read" onchange="loadAlertsPage()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                                    <option value="">All Status</option>
+                                    <option value="0">Unread Only</option>
+                                    <option value="1">Read Only</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Alert Table -->
+                        <div class="fleet-matrix-card premium" style="margin-top:0;">
+                            <div class="matrix-header">
+                                <div class="matrix-title">
+                                    <i data-lucide="bell" style="color:var(--brand-primary);"></i>
+                                    <span id="alerts-page-title">All Alerts</span>
                                 </div>
-                                <div class="map-glass-panel" style="padding: 2px;">
-                                    <button class="layer-toggle-btn" id="btn-center-vehicle" title="Center on selected" style="width: 100%;"><i data-lucide="crosshair" style="width: 16px;"></i></button>
+                            </div>
+                            <div style="overflow-x:auto;">
+                                <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                                    <thead>
+                                         <tr style="border-bottom:2px solid var(--fleet-border); background:var(--fleet-card-bg);">
+                                            <th style="padding:12px 16px; text-align:left; width:40px;"></th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:120px;">Vehicle</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:140px;">Type</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:90px;">Severity</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:200px;">Title</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:250px;">Message</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:150px;">Date & Time</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:100px;">Acknowledge</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:110px;">Action</th>
+                                            <th style="padding:12px 16px; text-align:left; min-width:120px;">Share</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alerts-page-body">
+                                        <tr>
+                                            <td colspan="10" style="padding:40px; text-align:center; color:var(--text-dim);">Loading alerts...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="alerts-page-pagination" style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-top:1px solid var(--fleet-border);"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Driver Safety View -->
+                <!-- ============================================================ -->
+                <!-- LIVE MAP — Enterprise Fleet Operations Center (v2.0 Premium) -->
+                <!-- ============================================================ -->
+                <div id="view-map" class="sub-view hidden-view">
+                    <div class="lm-layout">
+
+                        <!-- LEFT SIDEBAR — Fleet Explorer -->
+                        <aside class="lm-sidebar" id="fleet-panel">
+                            <div class="lm-sidebar-head">
+                                <h2>Fleet Explorer</h2>
+                                <button class="lm-sidebar-toggle" id="fleet-panel-toggle" title="Collapse Sidebar">
+                                    <i data-lucide="chevron-left"></i>
+                                </button>
+                            </div>
+
+                            <div class="lm-sidebar-actions">
+                                <!-- Search & Filter -->
+                                <div class="lm-search-container">
+                                    <div class="lm-sidebar-search">
+                                        <i data-lucide="search"></i>
+                                        <input type="text" id="fleet-search" placeholder="Search vehicles, drivers..." autocomplete="off">
+                                    </div>
+                                    <button class="lm-filter-btn" title="Filter Options">
+                                        <i data-lucide="sliders-horizontal"></i>
+                                    </button>
+                                </div>
+
+                                <!-- KPI Grid -->
+                                <div class="lm-kpi-grid">
+                                    <button class="lm-kpi active" data-filter="all">
+                                        <span class="label">All</span>
+                                        <span class="count" id="fleet-kpi-all">0</span>
+                                    </button>
+                                    <button class="lm-kpi" data-filter="online">
+                                        <span class="label">Online</span>
+                                        <span class="count" id="fleet-kpi-online">0</span>
+                                    </button>
+                                    <button class="lm-kpi" data-filter="moving">
+                                        <span class="label">Moving</span>
+                                        <span class="count" id="fleet-kpi-moving">0</span>
+                                    </button>
+                                    <button class="lm-kpi" data-filter="idle">
+                                        <span class="label">Idle</span>
+                                        <span class="count" id="fleet-kpi-idle">0</span>
+                                    </button>
+                                    <button class="lm-kpi" data-filter="offline">
+                                        <span class="label">Offline</span>
+                                        <span class="count" id="fleet-kpi-offline">0</span>
+                                    </button>
+                                </div>
+
+                                <!-- Sorting -->
+                                <div class="lm-sort-row">
+                                    <span>Sort:</span>
+                                    <select id="fleet-sort-select">
+                                        <option value="status">Status</option>
+                                        <option value="name">Name</option>
+                                        <option value="speed">Speed</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            <!-- Debug Overlay -->
-                            <div class="map-debug-panel">
-                                <div style="margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; color: var(--brand-primary); font-weight: 800;">MAP ENGINE STATUS</div>
-                                <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Vehicles:</span> <span id="dbg-total">0</span></div>
-                                <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Active Markers:</span> <span id="dbg-markers">0</span></div>
+                            <!-- Vehicle List -->
+                            <div class="lm-vehicle-list" id="fleet-vehicle-list">
+                                <!-- Dynamic Assets -->
                             </div>
-                        </div>
+                        </aside>
+
+                        <!-- MAP AREA -->
+                        <main class="lm-map-area">
+                            <!-- Pure map canvas — stays inside rounded/clipped container -->
+                            <div class="lm-map-container-inner">
+                                <div id="live-map"></div>
+                            </div>
+
+                            <!-- Top Left Overlay: Search (floats over map) -->
+                            <div class="lm-map-search-overlay">
+                                <i data-lucide="search"></i>
+                                <input type="text" placeholder="Search map area..." id="map-area-search">
+                            </div>
+
+                            <!-- Top Right Overlay: Layers -->
+                            <div class="lm-map-layers-overlay">
+                                <button class="lm-layers-btn" id="lm-layer-toggle">
+                                    <i data-lucide="layers"></i>
+                                    <span>Layers</span>
+                                </button>
+                                <div class="lm-layer-menu" id="lm-layer-menu" style="display:none;">
+                                    <button class="lm-layer-opt active" data-layer="osm" onclick="switchMapLayer('osm')">Standard</button>
+                                    <button class="lm-layer-opt" data-layer="satellite" onclick="switchMapLayer('satellite')">Satellite</button>
+                                    <button class="lm-layer-opt" data-layer="terrain" onclick="switchMapLayer('terrain')">Terrain</button>
+                                    <button class="lm-layer-opt" data-layer="dark" onclick="switchMapLayer('dark')">Dark Mode</button>
+                                    <button class="lm-layer-opt" data-layer="light" onclick="switchMapLayer('light')">Light Mode</button>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Left Toolbar -->
+                            <div class="lm-map-bottom-bar">
+                                <div class="lm-glass-btn toggle-wrap">
+                                    <span>Traffic</span>
+                                    <label class="mockup-switch">
+                                        <input type="checkbox" id="toggle-traffic">
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                <div class="lm-glass-btn toggle-wrap">
+                                    <span>Geofences</span>
+                                    <label class="mockup-switch">
+                                        <input type="checkbox" id="toggle-geofences" checked>
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                <button id="lm-follow-btn" class="lm-btn-blue" onclick="toggleFollowMode()">
+                                    <i data-lucide="navigation"></i>
+                                    <span>Follow vehicle</span>
+                                </button>
+                            </div>
+
+                            <!-- Right Stack Controls -->
+                            <div class="lm-map-right-stack">
+                                <button class="lm-icon-btn-square" onclick="locateMe()" title="Locate Me">
+                                    <i data-lucide="crosshair"></i>
+                                </button>
+                                <button class="lm-icon-btn-square" onclick="map.zoomIn()" title="Zoom In">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                                <button class="lm-icon-btn-square" onclick="map.zoomOut()" title="Zoom Out">
+                                    <i data-lucide="minus"></i>
+                                </button>
+                                <button class="lm-icon-btn-square" onclick="fitFleet()" title="Fit Fleet">
+                                    <i data-lucide="maximize"></i>
+                                </button>
+                                <button class="lm-icon-btn-square" title="Map Settings">
+                                    <i data-lucide="settings"></i>
+                                </button>
+                                <button class="lm-icon-btn-square" onclick="toggleMapFullscreen()" title="Fullscreen">
+                                    <i data-lucide="expand"></i>
+                                </button>
+                            </div>
+                        </main>
+                    </div>
+
+                            <!-- Vehicle Detail Popup (Floating Glass Card) -->
+                            <div class="lm-popup" id="vehicle-popup-card" style="display:none;">
+                                <div class="lm-popup-head">
+                                    <div class="lm-popup-title">
+                                        <span class="lm-popup-name" id="popup-vehicle-name">--</span>
+                                        <span class="lm-popup-plate" id="popup-vehicle-plate"></span>
+                                        <span class="lm-popup-badge" id="popup-vehicle-status">
+                                            <span class="lm-popup-dot"></span>
+                                            <span id="popup-status-text">--</span>
+                                        </span>
+                                    </div>
+                                    <button class="lm-popup-close" onclick="closeVehiclePopup()">
+                                        <i data-lucide="x" style="width:14px; height:14px;"></i>
+                                    </button>
+                                </div>
+
+                                <!-- A. Live Status -->
+                                <div class="lm-popup-section">
+                                    <div class="lm-popup-section-title">Live Status</div>
+                                    <div class="lm-popup-grid">
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="gauge" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-speed">-- km/h</div>
+                                            <div class="lm-popup-stat-lbl">Speed</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="power" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-ignition">--</div>
+                                            <div class="lm-popup-stat-lbl">Ignition</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="fuel" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-fuel">--%</div>
+                                            <div class="lm-popup-stat-lbl">Fuel</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="battery" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-battery">--</div>
+                                            <div class="lm-popup-stat-lbl">Battery</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="signal" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-signal">--</div>
+                                            <div class="lm-popup-stat-lbl">GSM</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-icon"><i data-lucide="satellite" style="width:13px;height:13px;"></i></div>
+                                            <div class="lm-popup-stat-val" id="popup-gps">--</div>
+                                            <div class="lm-popup-stat-lbl">GPS</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- B. Location -->
+                                <div class="lm-popup-section">
+                                    <div class="lm-popup-section-title">Location</div>
+                                    <div class="lm-popup-address">
+                                        <i data-lucide="map-pin" style="width:12px; height:12px;"></i>
+                                        <span id="popup-address">--</span>
+                                    </div>
+                                    <div class="lm-popup-coords">
+                                        <span id="popup-coords">--</span>
+                                        <span id="popup-last-update">--</span>
+                                    </div>
+                                </div>
+
+                                <!-- C. Trip Summary -->
+                                <div class="lm-popup-section">
+                                    <div class="lm-popup-section-title">Trip Summary</div>
+                                    <div class="lm-popup-grid">
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-distance">-- km</div>
+                                            <div class="lm-popup-stat-lbl">Today Distance</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-drive-time">--</div>
+                                            <div class="lm-popup-stat-lbl">Drive Time</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-idle-time">--</div>
+                                            <div class="lm-popup-stat-lbl">Idle Time</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-stops">--</div>
+                                            <div class="lm-popup-stat-lbl">Stops</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- D. Vehicle Intelligence -->
+                                <div class="lm-popup-section">
+                                    <div class="lm-popup-section-title">Vehicle Intelligence</div>
+                                    <div class="lm-popup-grid">
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-vin">--</div>
+                                            <div class="lm-popup-stat-lbl">VIN</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-manufacturer">--</div>
+                                            <div class="lm-popup-stat-lbl">Manufacturer</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-model">--</div>
+                                            <div class="lm-popup-stat-lbl">Model</div>
+                                        </div>
+                                        <div class="lm-popup-stat">
+                                            <div class="lm-popup-stat-val" id="popup-health">--%</div>
+                                            <div class="lm-popup-stat-lbl">Health Score</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Footer Actions -->
+                                <div class="lm-popup-actions">
+                                    <button class="lm-popup-btn follow" onclick="followVehicleFromPopup()">
+                                        <i data-lucide="video" style="width:13px;"></i> Follow
+                                    </button>
+                                    <button class="lm-popup-btn" onclick="openDetailsModalFromPopup()">
+                                        <i data-lucide="file-text" style="width:13px;"></i> Details
+                                    </button>
+                                    <button class="lm-popup-btn" onclick="showRoutePlayback()">
+                                        <i data-lucide="play" style="width:13px;"></i> Replay
+                                    </button>
+                                </div>
+                            </div>
+                        </main>
                     </div>
                 </div>
 
@@ -838,8 +1765,8 @@
                         <div class="modal-body">
                             <!-- Amber Warning Banner Component -->
                             <div id="vinWarningBanner" class="vin-warning-banner vin-hidden" onclick="triggerManualVinEntry()">
-                              <span class="vin-warning-icon">⚠️</span>
-                              <span class="vin-warning-text">Vehicle Profile Incomplete — Add VIN to activate dynamic fuel costing and diagnostics.</span>
+                              <span class="vin-warning-icon">âš ï¸</span>
+                              <span class="vin-warning-text">Vehicle Profile Incomplete â€” Add VIN to activate dynamic fuel costing and diagnostics.</span>
                             </div>
                             <div class="details-grid">
                                 <!-- Section 1: Basic Info -->
@@ -866,7 +1793,7 @@
                                         <div class="info-field"><label>Fuel Level</label><span id="det-fuel">N/A</span></div>
                                         <div class="info-field"><label>Odometer</label><span id="det-odometer">0 km</span></div>
                                         <div class="info-field"><label>Altitude</label><span id="det-altitude">0 m</span></div>
-                                        <div class="info-field"><label>Course</label><span id="det-course">0°</span></div>
+                                        <div class="info-field"><label>Course</label><span id="det-course">0Â°</span></div>
                                     </div>
                                 </div>
                                 <!-- Section 3: Status & Health -->
@@ -1010,7 +1937,7 @@
                         <span class="status-indicator online" style="position:absolute; bottom:-2px; right:-2px; border:2px solid var(--bg-sidebar);"></span>
                     </div>
                     <div>
-                        <p class="bot-name">AI - Telemetrix</p>
+                        <p class="bot-name">AI-Telematics</p>
                         <span class="online-tag">System Intelligence Active</span>
                     </div>
                 </div>
@@ -1040,24 +1967,384 @@
 
                 <!-- Main Chat Area -->
                 <div class="chat-main">
-                    <div class="chat-messages-area" id="chat-messages"></div>
+                    <div class="chat-messages-area" id="chat-messages">
+                        <div class="chat-welcome-state">
+                            <div class="bot-avatar-glow"><div class="bot-avatar"><i data-lucide="bot"></i></div></div>
+                            <h2>Fleet Intelligence Assistant</h2>
+                            <p>DeepSeek-V4 | Real-time fleet data</p>
+                            <div class="welcome-suggestions">
+                                <button onclick="fillAndSend('How many vehicles are online right now?')"><i data-lucide="radio" style="width:12px;height:12px;"></i> Active vehicles</button>
+                                <button onclick="fillAndSend('Show fuel consumption today')"><i data-lucide="fuel" style="width:12px;height:12px;"></i> Fuel analysis</button>
+                                <button onclick="fillAndSend('Any overspeed or alert events today?')"><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i> Alerts check</button>
+                                <button onclick="fillAndSend('List vehicles with most alerts')"><i data-lucide="bar-chart-3" style="width:12px;height:12px;"></i> Top offenders</button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="chat-input-section">
                         <div class="typing-indicator" id="typing-indicator" style="display: none;">
                             <span></span><span></span><span></span>
-                            AI is thinking...
+                            AI is processing telemetry...
                         </div>
                         <div class="chat-input-wrapper">
-                            <button class="attachment-btn"><i data-lucide="paperclip"></i></button>
+                            <button class="attachment-btn" id="new-chat-btn-main" onclick="startNewChat()" title="Start New Conversation"><i data-lucide="plus-circle"></i></button>
                             <input type="text" id="user-input" placeholder="Ask about your fleet intelligence...">
+                            <button id="stop-btn" class="stop-action-btn" onclick="stopGeneration()" style="display:none;"><i data-lucide="square"></i></button>
+                            <button id="voice-input-btn" class="voice-input-btn" title="Voice Input (Hold to speak)" onclick="toggleVoiceInput()"><i data-lucide="mic"></i></button>
                             <button id="send-btn" class="send-action-btn"><i data-lucide="send"></i></button>
                         </div>
                     </div>
                 </div>
             </div>
         </aside>
+
+        <!-- Alert Preferences Modal -->
+        <div id="alert-preferences-modal" class="modal-overlay hidden-view">
+            <div class="premium-card details-modal-content" style="max-width: 800px; width: 90%;">
+                <div class="modal-header">
+                    <div style="display:flex; align-items:center; gap:16px;">
+                        <div class="bot-avatar-glow"><div class="bot-avatar"><i data-lucide="settings"></i></div></div>
+                        <div>
+                            <h3>Enterprise Alert Preferences</h3>
+                            <p style="font-size:0.75rem; color:var(--text-dim);">Configure which telemetry events trigger system notifications</p>
+                        </div>
+                    </div>
+                    <button class="icon-btn-small" onclick="closeAlertPreferences()"><i data-lucide="x"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="preference-controls">
+                        <div class="search-wrap">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="alert-type-search" placeholder="Search alert types (e.g. SOS, Geofence)..." onkeyup="filterAlertTypes()">
+                        </div>
+                        <div class="bulk-actions">
+                            <button class="glass-btn small" onclick="selectAllAlerts(true)">Select All</button>
+                            <button class="glass-btn small" onclick="selectAllAlerts(false)">Deselect All</button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert-types-grid" id="alert-types-selection-grid">
+                        <!-- Checkboxes injected here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="glass-btn" onclick="closeAlertPreferences()">Cancel</button>
+                    <button class="auth-btn" id="save-alert-prefs-btn" onclick="saveAlertPreferences()">
+                        <i data-lucide="save"></i> Save Preferences
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="/static/script.js?v=6.8" defer></script>
+    <script src="/static/script.js?v=8.9" defer></script>
+
+    </div><!-- /main-wrapper -->
+
+    <!-- Alert Selection Modal (Redesign) -->
+    <div class="modal-overlay" onclick="closeAlertSelector()"></div>
+    <div id="alert-selection-modal">
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:32px;">
+            <div style="display:flex; align-items:center; gap:16px;">
+                <div style="background:rgba(239, 68, 68, 0.1); color:var(--brand-danger); padding:14px; border-radius:14px;">
+                    <i data-lucide="shield-alert" style="width:28px; height:28px;"></i>
+                </div>
+                <div>
+                    <h3 style="margin:0; font-family:'Space Grotesk'; font-size:1.6rem; color:var(--fleet-text-main);">Alert Intelligence Configuration</h3>
+                    <p style="margin:4px 0 0; color:var(--fleet-text-sub); font-size:0.95rem; font-weight:700;">Select which alert categories should appear in your live feed</p>
+                </div>
+            </div>
+            <button class="icon-btn" onclick="closeAlertSelector()" style="background:var(--fleet-bg); border-radius:12px; padding:8px;"><i data-lucide="x"></i></button>
+        </div>
+
+        <div class="preference-controls" style="margin-bottom:32px; display:flex; gap:16px; align-items:center;">
+            <div class="matrix-search-wrap" style="flex:1;">
+                <i data-lucide="search"></i>
+                <input type="text" id="dashboard-alert-search" placeholder="Filter alert types by name..." oninput="filterDashboardAlertTypes()" style="background:var(--fleet-bg); border:2px solid var(--fleet-border); border-radius:16px; padding:12px 16px 12px 48px; width:100%; color:var(--fleet-text-main); font-weight:800;">
+            </div>
+            <div class="bulk-actions" style="display:flex; gap:12px;">
+                <button class="glass-btn primary" onclick="selectAllDashboardAlerts(true)" style="padding:12px 24px;">Select All</button>
+                <button class="glass-btn secondary" onclick="selectAllDashboardAlerts(false)" style="padding:12px 24px;">Clear All</button>
+            </div>
+        </div>
+
+        <div id="dashboard-alert-selection-grid" class="alert-types-grid" style="max-height:450px; overflow-y:auto; padding-right:10px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px;">
+            <!-- Dynamic selection items will use .pref-item-detailed and .active classes -->
+        </div>
+
+        <div class="modal-footer" style="margin-top:40px; display:flex; justify-content:flex-end; gap:20px; border-top:1px solid var(--fleet-border); padding-top:32px;">
+            <button class="glass-btn secondary" onclick="closeAlertSelector()" style="padding:14px 28px; font-weight:800;">Cancel Changes</button>
+            <button class="glass-btn primary" id="save-dashboard-alerts-btn" onclick="saveDashboardAlertPreferences()" style="padding:14px 32px; font-weight:800; background:var(--brand-primary); color:#fff; border-radius:16px;">Confirm Preferences</button>
+        </div>
+    </div>
+
+    <!-- ALERT MODAL (Bell Click) -->
+    <div id="alert-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10000; backdrop-filter:blur(8px);" onclick="if(event.target===this)closeAlertModal()">
+        <div class="modal-content" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90%; max-width:900px; max-height:85vh; background:var(--fleet-card-bg, #fff); border:1px solid var(--fleet-border); border-radius:20px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 28px; border-bottom:1px solid var(--fleet-border); flex-shrink:0;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:40px; height:40px; border-radius:12px; background:rgba(255,107,107,0.15); display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="bell" style="width:22px; height:22px; color:#ff6b6b;"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--fleet-text);">Alerts</h3>
+                        <p style="margin:0; font-size:12px; color:var(--fleet-muted);">All alerts are saved permanently</p>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="markAllAlertsRead()" class="glass-btn secondary" style="padding:6px 14px; font-size:11px; border-radius:8px;">Mark All Read</button>
+                    <button onclick="closeAlertModal()" class="icon-btn" style="width:36px; height:36px;"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+            <!-- Filters -->
+            <div style="display:flex; gap:10px; padding:16px 28px; border-bottom:1px solid var(--fleet-border); flex-wrap:wrap; flex-shrink:0;">
+                <select id="alert-filter-type" onchange="loadAlertModalData()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:12px;">
+                    <option value="">All Types</option>
+                    <optgroup label="Driving">
+                        <option value="hard_acceleration">Hard Acceleration</option>
+                        <option value="hard_braking">Hard Braking</option>
+                        <option value="hard_cornering">Hard Cornering</option>
+                        <option value="excessive_idle">Excessive Idle</option>
+                        <option value="idle_alert">Idle Alert</option>
+                    </optgroup>
+                    <optgroup label="Speed">
+                        <option value="speed_alert">Speed Alert</option>
+                        <option value="overspeed">Overspeed</option>
+                    </optgroup>
+                    <optgroup label="Safety">
+                        <option value="accident">Accident</option>
+                        <option value="fatigue_driving">Fatigue Driving</option>
+                        <option value="jamming">GPS Jamming</option>
+                    </optgroup>
+                    <optgroup label="Vehicle">
+                        <option value="device_moving">Moving</option>
+                        <option value="device_stopped">Stopped</option>
+                        <option value="ignition_on">Ignition On</option>
+                        <option value="ignition_off">Ignition Off</option>
+                    </optgroup>
+                    <optgroup label="Device">
+                        <option value="device_offline">Offline</option>
+                        <option value="device_online">Online</option>
+                        <option value="low_battery">Low Battery</option>
+                        <option value="power_off">Power Off</option>
+                        <option value="fault">Fault</option>
+                    </optgroup>
+                    <optgroup label="Fleet">
+                        <option value="imei_missing">IMEI Missing</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="driver_changed">Driver Changed</option>
+                    </optgroup>
+                    <optgroup label="Geofence">
+                        <option value="geofence_enter">Geofence Enter</option>
+                        <option value="geofence_exit">Geofence Exit</option>
+                    </optgroup>
+                    <optgroup label="Custom">
+                        <option value="custom_alert">Custom Alert</option>
+                    </optgroup>
+                </select>
+                <select id="alert-filter-severity" onchange="loadAlertModalData()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:12px;">
+                    <option value="">All Severity</option>
+                    <option value="critical">Critical</option>
+                    <option value="warning">Warning</option>
+                    <option value="info">Info</option>
+                </select>
+                <input id="alert-filter-date-from" type="date" onchange="loadAlertModalData()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:12px;">
+                <input id="alert-filter-date-to" type="date" onchange="loadAlertModalData()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:12px;">
+                <input id="alert-filter-vehicle" type="text" placeholder="Search vehicle..." oninput="debounceAlertSearch()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:12px; width:150px;">
+            </div>
+            <!-- Stats Bar -->
+            <div id="alert-modal-stats" style="display:flex; gap:16px; padding:12px 28px; border-bottom:1px solid var(--fleet-border); flex-shrink:0;"></div>
+            <!-- Alert List -->
+            <div id="alert-modal-list" style="flex:1; overflow-y:auto; padding:12px 28px;"></div>
+            <!-- Pagination -->
+            <div id="alert-modal-pagination" style="display:flex; justify-content:space-between; align-items:center; padding:12px 28px; border-top:1px solid var(--fleet-border); flex-shrink:0;"></div>
+        </div>
+    </div>
+
+    <!-- CUSTOM ALERT FORM MODAL -->
+    <div id="custom-alert-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10001; backdrop-filter:blur(8px);" onclick="if(event.target===this)closeCustomAlertForm()">
+        <div class="modal-content" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90%; max-width:500px; background:var(--fleet-card-bg, #fff); border:1px solid var(--fleet-border); border-radius:20px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--fleet-border);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width:36px; height:36px; border-radius:10px; background:rgba(168,85,247,0.12); display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="message-square-plus" style="width:18px; height:18px; color:#a855f7;"></i>
+                    </div>
+                    <span style="font-size:16px; font-weight:800; color:var(--fleet-text);">Create Custom Alert</span>
+                </div>
+                <button onclick="closeCustomAlertForm()" class="icon-btn" style="width:32px; height:32px;"><i data-lucide="x"></i></button>
+            </div>
+            <div style="padding:24px; display:flex; flex-direction:column; gap:16px;">
+                <div>
+                    <label style="font-size:12px; font-weight:700; color:var(--fleet-muted); display:block; margin-bottom:6px;">Vehicle *</label>
+                    <select id="custom-alert-vehicle" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                        <option value="">Select Vehicle...</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px; font-weight:700; color:var(--fleet-muted); display:block; margin-bottom:6px;">Severity *</label>
+                    <select id="custom-alert-severity" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px;">
+                        <option value="info">Info</option>
+                        <option value="warning" selected>Warning</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px; font-weight:700; color:var(--fleet-muted); display:block; margin-bottom:6px;">Title *</label>
+                    <input id="custom-alert-title" type="text" placeholder="e.g. Vehicle needs tire change" style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:12px; font-weight:700; color:var(--fleet-muted); display:block; margin-bottom:6px;">Message</label>
+                    <textarea id="custom-alert-message" rows="3" placeholder="Optional details..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; box-sizing:border-box; resize:vertical;"></textarea>
+                </div>
+                <button onclick="submitCustomAlert()" class="glass-btn primary" style="padding:12px 24px; width:100%; font-size:14px; font-weight:700;">
+                    <i data-lucide="send" style="width:14px; margin-right:6px;"></i> Create Alert
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ROUTE PLAYBACK MODAL -->
+    <!-- ============================================================ -->
+    <div id="route-playback-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); z-index:10002; backdrop-filter:blur(10px);" onclick="if(event.target===this)closeRoutePlayback()">
+        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:96%; max-width:1100px; max-height:92vh; background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:20px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,0.4);">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px; border-bottom:1px solid var(--fleet-border); flex-shrink:0;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg,rgba(37,99,235,0.15),rgba(99,102,241,0.1)); display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="map-pin" style="width:20px; height:20px; color:var(--brand-primary);"></i>
+                    </div>
+                    <div>
+                        <h3 id="replay-modal-title" style="margin:0; font-size:17px; font-weight:800; color:var(--fleet-text-main);">Route Playback</h3>
+                        <p style="margin:0; font-size:11px; color:var(--fleet-text-sub);">Historical GPS trail for selected vehicle</p>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-size:11px; color:var(--fleet-text-sub); font-weight:600;">From:</label>
+                    <input type="datetime-local" id="replay-from" style="padding:6px 10px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-main); font-size:12px;">
+                    <label style="font-size:11px; color:var(--fleet-text-sub); font-weight:600;">To:</label>
+                    <input type="datetime-local" id="replay-to" style="padding:6px 10px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-main); font-size:12px;">
+                    <button onclick="loadRoutePlayback()" style="padding:7px 16px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                        <i data-lucide="search" style="width:12px;"></i> Load
+                    </button>
+                    <button onclick="closeRoutePlayback()" style="width:32px; height:32px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-sub); display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i data-lucide="x" style="width:16px;"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Stats Bar -->
+            <div id="replay-stats-bar" style="display:flex; gap:20px; padding:10px 24px; border-bottom:1px solid var(--fleet-border); flex-shrink:0; flex-wrap:wrap;"></div>
+            <!-- Map -->
+            <div style="flex:1; position:relative; min-height:420px;">
+                <div id="replay-map" style="width:100%; height:100%; min-height:420px;"></div>
+                <!-- Playback Controls Overlay -->
+                <div id="replay-controls" style="display:none; position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:14px; padding:10px 20px; display:flex; align-items:center; gap:14px; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:1000; backdrop-filter:blur(8px);">
+                    <button onclick="replayGoToStart()" title="Go to start" style="background:none; border:none; cursor:pointer; color:var(--fleet-text-sub);"><i data-lucide="skip-back" style="width:18px;"></i></button>
+                    <button id="replay-play-btn" onclick="toggleReplayPlayback()" style="width:38px; height:38px; border-radius:50%; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="play" id="replay-play-icon" style="width:16px;"></i>
+                    </button>
+                    <button onclick="replayGoToEnd()" title="Go to end" style="background:none; border:none; cursor:pointer; color:var(--fleet-text-sub);"><i data-lucide="skip-forward" style="width:18px;"></i></button>
+                    <input type="range" id="replay-slider" min="0" value="0" style="width:240px; accent-color:var(--brand-primary);" oninput="onReplaySliderChange()">
+                    <span id="replay-time-label" style="font-size:11px; color:var(--fleet-text-sub); min-width:130px; text-align:center; font-weight:600;">--</span>
+                    <label style="font-size:11px; color:var(--fleet-text-sub);">Speed:</label>
+                    <select id="replay-speed" style="font-size:11px; padding:4px 8px; border-radius:6px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-main);">
+                        <option value="1">1×</option>
+                        <option value="3">3×</option>
+                        <option value="10" selected>10×</option>
+                        <option value="30">30×</option>
+                        <option value="60">60×</option>
+                    </select>
+                </div>
+                <!-- Loading/Empty State -->
+                <div id="replay-placeholder" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; color:var(--fleet-text-sub); pointer-events:none;">
+                    <i data-lucide="route" style="width:48px; height:48px; opacity:0.3;"></i>
+                    <p style="font-size:13px; font-weight:600; opacity:0.6;">Select a date range and click Load to view the route history</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MONTHLY MIS REPORT MODAL -->
+    <!-- ============================================================ -->
+    <div id="monthly-mis-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:10001; backdrop-filter:blur(10px);" onclick="if(event.target===this)closeMonthlyMIS()">
+        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:94%; max-width:1200px; max-height:90vh; background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:20px; display:flex; flex-direction:column; overflow:hidden; box-shadow:var(--fleet-shadow, 0 25px 80px rgba(0,0,0,0.3));">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 28px; border-bottom:1px solid var(--fleet-border); flex-shrink:0;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <div style="width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1)); display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="bar-chart-3" style="width:24px; height:24px; color:var(--brand-primary);"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--fleet-text-main);">Monthly MIS Report</h3>
+                        <p id="monthly-mis-subtitle" style="margin:0; font-size:12px; color:var(--fleet-text-sub);">Complete fleet performance for selected month</p>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <input type="month" id="monthly-mis-month" onchange="loadMISDays()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-main); font-size:13px; font-weight:600;">
+                    <select id="monthly-mis-day" onchange="generateMonthlyMIS()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-main); font-size:13px; font-weight:600; min-width:120px;">
+                        <option value="">All Days</option>
+                    </select>
+                    <button onclick="generateMonthlyMIS()" style="padding:8px 18px; border-radius:10px; border:none; background:var(--brand-primary); color:#fff; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="refresh-cw" style="width:14px;"></i> Generate
+                    </button>
+                    <button onclick="exportMonthlyMISCSV()" style="padding:8px 14px; border-radius:10px; border:1px solid var(--brand-success); background:transparent; color:var(--brand-success); font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="download" style="width:14px;"></i> CSV
+                    </button>
+                    <button onclick="closeMonthlyMIS()" style="width:36px; height:36px; border-radius:10px; border:1px solid var(--fleet-border); background:var(--fleet-card); color:var(--fleet-text-sub); display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                        <i data-lucide="x" style="width:18px;"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Scrollable Content -->
+            <div style="flex:1; overflow-y:auto; padding:20px 28px;">
+                <!-- Summary Cards -->
+                <div id="monthly-mis-summary" style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;"></div>
+                <!-- Charts Row -->
+                <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:20px;">
+                    <div style="background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:14px; padding:18px;">
+                        <h4 style="margin:0 0 12px; font-size:13px; font-weight:700; color:var(--fleet-text-main);">Daily KM Trend</h4>
+                        <canvas id="monthly-mis-trend-chart" height="200"></canvas>
+                    </div>
+                    <div style="background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:14px; padding:18px;">
+                        <h4 style="margin:0 0 12px; font-size:13px; font-weight:700; color:var(--fleet-text-main);">Vendor Breakdown</h4>
+                        <div id="monthly-mis-vendor-bars"></div>
+                    </div>
+                </div>
+                <!-- Vehicle Table -->
+                <div style="background:var(--fleet-card); border:1px solid var(--fleet-border); border-radius:14px; overflow:hidden;">
+                    <div style="padding:16px 18px; border-bottom:1px solid var(--fleet-border); display:flex; justify-content:space-between; align-items:center;">
+                        <h4 style="margin:0; font-size:13px; font-weight:700; color:var(--fleet-text-main);">Vehicle-Wise Breakdown</h4>
+                        <span id="monthly-mis-veh-count" style="font-size:11px; color:var(--fleet-text-muted);"></span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="premium-table" style="min-width:1300px;">
+                            <thead>
+                                <tr>
+                                    <th style="cursor:pointer;" onclick="sortMonthlyMIS('vehicle')">Vehicle &#8597;</th>
+                                    <th>Vendor</th>
+                                    <th>Category</th>
+                                    <th>Group</th>
+                                    <th style="cursor:pointer;" onclick="sortMonthlyMIS('reporting_days')">Days &#8597;</th>
+                                    <th style="cursor:pointer;" onclick="sortMonthlyMIS('total_km')">Total KM &#8597;</th>
+                                    <th>On-Peak</th>
+                                    <th>Off-Peak</th>
+                                    <th style="cursor:pointer;" onclick="sortMonthlyMIS('fuel_consumed')">Fuel (L) &#8597;</th>
+                                    <th style="cursor:pointer;" onclick="sortMonthlyMIS('actual_kmpl')">km/L &#8597;</th>
+                                    <th>Benchmark</th>
+                                    <th>Avg Daily</th>
+                                    <th>Braking</th>
+                                    <th>Speeding</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthly-mis-veh-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

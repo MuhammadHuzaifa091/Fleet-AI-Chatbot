@@ -22,3 +22,5 @@ pyyaml
 PyJWT
 pymysql
 apscheduler>=3.10.0
+beautifulsoup4
+openpyxl
