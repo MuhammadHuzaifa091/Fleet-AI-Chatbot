@@ -43,6 +43,8 @@ function switchView(view) {
     if (view === 'vehicle-intel') if (typeof initVehicleIntel === 'function') initVehicleIntel();
     if (view === 'fuel') if (typeof initFuelAnalytics === 'function') initFuelAnalytics();
     if (view === 'maintenance') if (typeof initMaintenanceCenter === 'function') initMaintenanceCenter();
+    if (view === 'planner') if (typeof initPlanner === 'function') initPlanner();
+    if (view === 'workshop') if (typeof initWorkshop === 'function') initWorkshop();
     if (view === 'data-import') if (typeof initDataImportView === 'function') initDataImportView();
     if (view === 'alerts') if (typeof loadAlertsPage === 'function') loadAlertsPage();
     if (view === 'driver') if (typeof initDriverView === 'function') initDriverView();
@@ -123,7 +125,9 @@ function updateExecutiveDashboard(data) {
         online: data.kpis?.active || data.kpis?.online || 0,
         moving: data.kpis?.moving || data.kpis?.active || 0,
         idle: data.kpis?.idle || data.kpis?.stationary || 0,
-        offline: data.kpis?.stale || data.kpis?.offline || 0
+        offline: data.kpis?.stale || data.kpis?.offline || 0,
+        completedToday: data.kpis?.completedToday || 0,
+        totalDistanceKm: data.kpis?.totalDistanceKm || 0
     };
 
     // 1. Update KPI Main Values
@@ -151,6 +155,10 @@ function updateExecutiveDashboard(data) {
     animateCounter('kpi-trips-total-v2', activeTrips + completedTrips);
     if (document.getElementById('kpi-trips-running')) document.getElementById('kpi-trips-running').innerText = activeTrips;
     if (document.getElementById('kpi-trips-completed')) document.getElementById('kpi-trips-completed').innerText = completedTrips;
+    if (document.getElementById('kpi-total-distance-v2')) {
+        const distKm = k.totalDistanceKm || 0;
+        document.getElementById('kpi-total-distance-v2').innerHTML = Math.round(distKm).toLocaleString() + ' <small>km</small>';
+    }
     
     // Alerts KPI
     const alerts = (data.recent_events || []).filter(e => alertPreferences[e.type] !== false);
@@ -820,7 +828,7 @@ const TRACCAR_EVENT_TYPES = [
 const translations = {
     en: {
         login_title: "AI - Telemetrix", login_subtitle: "Enterprise Intelligence Portal", label_email: "Corporate Email", label_password: "Security Key", label_name: "Full Name", btn_access: "Access System", new_to: "New to Telemetrix?", req_access: "Request Access", demo_access: "Demo Access:", demo_note: "Valid for all modules",
-        nav_dashboard: "Dashboard", nav_map: "Live Map", nav_intel: "Vehicle Intel", nav_driver: "Driver Intel", nav_fuel: "Fuel Analytics", nav_maint: "Maintenance",
+        nav_dashboard: "Dashboard", nav_map: "Live Map", nav_intel: "Vehicle Intel", nav_driver: "Driver Intel", nav_fuel: "Fuel Analytics", nav_maint: "Maintenance", nav_planner: "Planner & Rules",
         dash_title: "Dashboard Overview", dash_subtitle: "Real-time updates", stat_active: "Active Units", stat_moving: "Moving", stat_fuel: "Fleet Fuel", stat_alerts: "Alerts",
         kpi_total: "Total Units", kpi_moving: "Moving", kpi_idle: "Idle", kpi_stopped: "Stopped", kpi_offline: "Offline", kpi_alerts: "Active Alerts", kpi_overspeed: "Overspeed", kpi_ignition: "Ignition", kpi_geofence: "Geofence", kpi_tamper: "Tamper"
     }
@@ -1028,6 +1036,26 @@ let userRole = localStorage.getItem('fleet_role');
 let userName = localStorage.getItem('fleet_name');
 let selectedVehicle = null;
 
+function authHeaders() { return { 'Authorization': `Bearer ${authToken}` }; }
+
+function formatPKR(amount, showDecimals = false) {
+    if (amount == null || isNaN(amount)) return 'Rs. 0';
+    const num = Number(amount);
+    if (showDecimals) return 'Rs. ' + num.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'Rs. ' + num.toLocaleString('en-PK', { maximumFractionDigits: 0 });
+}
+
+const MAINT_TYPES = {
+    oil_change: { name: 'Oil Change', default_km: 5000, default_days: 180, color: '#3b82f6' },
+    filter_change: { name: 'Filter Change', default_km: 10000, default_days: 365, color: '#10b981' },
+    brake_service: { name: 'Brake Service', default_km: 20000, default_days: 730, color: '#f59e0b' },
+    tire_rotation: { name: 'Tire Rotation', default_km: 10000, default_days: 365, color: '#8b5cf6' },
+    transmission: { name: 'Transmission Service', default_km: 40000, default_days: 1460, color: '#ef4444' },
+    coolant: { name: 'Coolant Flush', default_km: 50000, default_days: 1095, color: '#06b6d4' },
+    spark_plugs: { name: 'Spark Plugs', default_km: 30000, default_days: 730, color: '#f97316' },
+    inspection: { name: 'General Inspection', default_km: 10000, default_days: 365, color: '#6366f1' },
+};
+
 // Chart Instances
 let velocityChart = null;
 let statusDonutChart = null;
@@ -1185,57 +1213,64 @@ function switchFuelScope(scope) {
     } else {
         if (selectorWrap) selectorWrap.style.display = 'block';
         if (contextBadge) contextBadge.innerText = 'Vehicle Level';
-        populateFuelVehicleDropdown();
+        const searchInput = document.getElementById('fuel-vehicle-search');
+        if (searchInput) { searchInput.value = ''; searchInput.focus(); }
     }
 }
 
-async function populateFuelVehicleDropdown() {
-    const sel = document.getElementById('fuel-vehicle-selector');
-    if (!sel || !authToken) return;
+let _fuelSearchDebounce = null;
 
-    try {
-        const resp = await fetch('/api/fleet/fdb/ke-vehicles', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const vehicles = data.vehicles || [];
-        window._cachedFleetVehicles = vehicles.map(v => ({
-            id: v.device_id,
-            name: v.alias_name || v.name || v.uniqueId,
-            uniqueid: v.uniqueId
-        }));
-        sel.innerHTML = '<option value="">Select KE Vehicle...</option>' +
-            window._cachedFleetVehicles.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
-        if (!vehicles.length) {
-            sel.innerHTML = '<option value="">No KE vehicles available</option>';
-        }
-        if (selectedVehicle) { sel.value = selectedVehicle.id; handleFuelVehicleChange(); }
-    } catch (e) { console.warn('Fuel dropdown error:', e); }
+function searchFuelVehicle(query) {
+    const container = document.getElementById('fuel-search-results');
+    if (!container) return;
+    clearTimeout(_fuelSearchDebounce);
+    _fuelSearchDebounce = setTimeout(() => {
+        fetch(`/api/analytics/driver/search?q=${encodeURIComponent(query || '')}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(r => r.ok ? r.json() : [])
+            .then(devices => {
+                if (!devices || !devices.length) {
+                    container.innerHTML = '<div style="padding:12px; color:#94a3b8; font-size:0.8rem;">No vehicles found</div>';
+                    container.style.display = 'block';
+                    return;
+                }
+                container.innerHTML = devices.map(d => {
+                    const statusColor = d.status === 'online' ? '#10b981' : d.status === 'offline' ? '#ef4444' : '#94a3b8';
+                    const onclick = d.id
+                        ? `selectFuelVehicle(${d.id}, '${(d.name||'').replace(/'/g,"\\'")}', 'traccar')`
+                        : `selectFuelVehicle(null, '${(d.name||'').replace(/'/g,"\\'")}', 'fleet_alerts')`;
+                    return `<div class="fuel-search-item" onclick="${onclick}" style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+                        <span style="width:8px; height:8px; border-radius:50%; background:${statusColor}; flex-shrink:0;"></span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600; font-size:0.82rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${d.name || d.id}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${d.id ? 'ID: ' + d.id : 'Fleet vehicle'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+                container.style.display = 'block';
+            })
+            .catch(() => { container.style.display = 'none'; });
+    }, 200);
 }
 
-function filterFuelDropdown() {
-    const search = document.getElementById('fuel-vehicle-search')?.value.toLowerCase() || '';
-    const sel = document.getElementById('fuel-vehicle-selector');
-    if (!sel) return;
-    Array.from(sel.options).forEach(opt => {
-        if (!opt.value) return;
-        opt.style.display = opt.textContent.toLowerCase().includes(search) ? '' : 'none';
-    });
-}
-
-function handleFuelVehicleChange() {
-    const sel = document.getElementById('fuel-vehicle-selector');
-    if (!sel || !sel.value) return;
-    const vehicles = window._cachedFleetVehicles || [];
-    const vehicle = vehicles.find(v => String(v.id) === String(sel.value));
-    if (!vehicle) return;
+function selectFuelVehicle(deviceId, name, source) {
+    const input = document.getElementById('fuel-vehicle-search');
+    const container = document.getElementById('fuel-search-results');
+    if (input) input.value = name || '';
+    if (container) container.style.display = 'none';
     const badge = document.getElementById('fuel-asset-context');
-    if (badge) badge.innerText = vehicle.name || vehicle.uniqueid;
-    const prevSelected = selectedVehicle;
-    selectedVehicle = vehicle;
-    updateFuelForSelected().finally(() => { selectedVehicle = prevSelected; });
+    if (badge) badge.innerText = name || deviceId;
+    if (deviceId) {
+        window._selectedFuelDeviceId = deviceId;
+        updateFuelForSelected();
+    }
 }
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#fuel-vehicle-selector-wrap')) {
+        const c = document.getElementById('fuel-search-results');
+        if (c) c.style.display = 'none';
+    }
+});
 
 async function loadOrgFuelAnalytics() {
     if (!authToken) return;
@@ -1306,10 +1341,11 @@ function applyFuelDataToUI(data, isOrgMode) {
 }
 
 async function updateFuelForSelected() {
-    if (!selectedVehicle || !fuelTrendChart) return;
+    const deviceId = window._selectedFuelDeviceId || (selectedVehicle && selectedVehicle.id);
+    if (!deviceId || !fuelTrendChart) return;
 
     try {
-        const resp = await fetch(`/api/analytics/fuel/${selectedVehicle.id}`, {
+        const resp = await fetch(`/api/analytics/fuel/${deviceId}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         if (!resp.ok) throw new Error("Fuel Analytics Fetch Failed");
@@ -1530,20 +1566,2329 @@ function updateMaintForSelected() {
     }
 }
 
-function initMaintenanceCenter() {
-    const dtcList = document.getElementById('active-dtc-list');
-    const forecast = document.getElementById('maintenance-forecast');
+let maintTabState = 'upcoming';
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+let maintDashboardData = null;
+let _maintHealthChart = null, _maintByTypeChart = null, _maintCategoryChart = null;
 
-    if (!latestVehicles || latestVehicles.length === 0) {
-        if (dtcList) dtcList.innerHTML = '<div style="color:var(--text-dim); padding:20px; text-align:center;">No Data Available</div>';
-        if (forecast) forecast.innerHTML = '<div style="color:var(--text-dim); padding:20px; text-align:center;">No Data Available</div>';
-        document.querySelector('#maint-asset-context').innerText = 'No Data Available';
-        document.querySelector('.maintenance-list .stats-badge').innerText = '0 Critical';
+function initMaintenanceCenter() {
+    loadMaintenanceDashboard();
+}
+
+async function loadMaintenanceDashboard() {
+    if (!authToken) return;
+    try {
+        const [dashResp, summaryResp, typesResp, tmplResp] = await Promise.all([
+            fetch('/api/maintenance/dashboard', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/types/summary', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/types?page_size=200&sort_by=updated_at&sort_order=desc', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/templates?page_size=500', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        if (!dashResp.ok) throw new Error(`Dashboard fetch failed: ${dashResp.status}`);
+        const data = await dashResp.json();
+        const summary = summaryResp.ok ? await summaryResp.json() : { total: 0, active: 0, inactive: 0, deleted: 0 };
+        const typesData = typesResp.ok ? await typesResp.json() : { items: [] };
+        const tmplData = tmplResp.ok ? await tmplResp.json() : { total: 0, items: [] };
+        const tmplItems = tmplData.items || [];
+        data._typeSummary = summary;
+        data._types = typesData.items || [];
+        data._templateSummary = {
+            total: tmplData.total || 0,
+            active: tmplItems.filter(t => t.is_active && !t.is_archived).length,
+            inactive: tmplItems.filter(t => !t.is_active && !t.is_archived).length,
+            archived: tmplItems.filter(t => t.is_archived).length
+        };
+        data._templates = tmplItems;
+        maintDashboardData = data;
+        renderMaintenanceKPI(data.kpis, summary, data._templateSummary);
+        renderMaintenanceHealth(data.fleet_health_summary, data.kpis);
+        renderMaintenanceByTypeChart(data.maintenance_by_type);
+        renderTypeCategoryChart(data._types);
+        renderRecentTypeActivity(data._types);
+        renderTemplateCategoryChart(data._templates);
+        renderRecentTemplateActivity(data._templates);
+        switchMaintTab(maintTabState);
+        lucide.createIcons({ el: document.getElementById('view-maintenance') });
+    } catch (e) {
+        console.error('Maintenance dashboard error:', e);
+        const tc = document.getElementById('maint-tab-content');
+        if (tc) tc.innerHTML = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load maintenance data.</div>';
+    }
+}
+
+function renderMaintenanceKPI(kpis, typeSummary, templateSummary) {
+    const container = document.getElementById('maint-kpi-cards');
+    if (!container) return;
+    const items = [
+        { label: 'Total Vehicles', value: kpis.total_vehicles || 0, icon: 'car', color: '#3b82f6' },
+        { label: 'Overdue', value: kpis.overdue_maintenance || 0, icon: 'alert-circle', color: '#ef4444' },
+        { label: 'Due Today', value: kpis.due_today || 0, icon: 'clock', color: '#f59e0b' },
+        { label: 'Due This Week', value: kpis.due_this_week || 0, icon: 'calendar', color: '#8b5cf6' },
+        { label: 'Active Jobs', value: kpis.active_workshop_jobs || 0, icon: 'wrench', color: '#06b6d4' },
+        { label: 'Fleet Health', value: (kpis.fleet_health_score || 0) + '%', icon: 'heart', color: '#10b981' },
+        { label: 'Total Types', value: typeSummary ? typeSummary.total : 0, icon: 'list', color: '#6366f1' },
+        { label: 'Active Types', value: typeSummary ? typeSummary.active : 0, icon: 'check-circle', color: '#10b981' },
+        { label: 'Inactive Types', value: typeSummary ? typeSummary.inactive : 0, icon: 'pause-circle', color: '#f59e0b' },
+        { label: 'Deleted Types', value: typeSummary ? typeSummary.deleted : 0, icon: 'trash-2', color: '#ef4444' },
+        { label: 'Total Templates', value: templateSummary ? templateSummary.total : 0, icon: 'layers', color: '#8b5cf6' },
+        { label: 'Active Templates', value: templateSummary ? templateSummary.active : 0, icon: 'check-circle', color: '#10b981' },
+        { label: 'Inactive Templates', value: templateSummary ? templateSummary.inactive : 0, icon: 'pause-circle', color: '#f59e0b' },
+        { label: 'Archived Templates', value: templateSummary ? templateSummary.archived : 0, icon: 'archive', color: '#94a3b8' },
+    ];
+    container.innerHTML = items.map(i => `
+        <div class="premium-card mini-stat">
+            <span class="card-label">${i.label}</span>
+            <span class="card-value" style="color:${i.color};">${i.value}</span>
+        </div>
+    `).join('');
+}
+
+function renderMaintenanceHealth(health, kpis) {
+    const legend = document.getElementById('maintHealthLegend');
+    const score = document.getElementById('maintHealthScore');
+    if (!legend || !score) return;
+    score.innerText = (kpis.fleet_health_score || 0) + '%';
+    const colors = { healthy: '#10b981', warning: '#f59e0b', critical: '#ef4444', unknown: '#94a3b8' };
+    legend.innerHTML = Object.entries(health).map(([k, v]) => `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="display:flex; align-items:center; gap:8px; font-size:0.82rem;">
+                <span style="width:10px; height:10px; border-radius:50%; background:${colors[k]};"></span> ${k.charAt(0).toUpperCase() + k.slice(1)}
+            </span>
+            <span style="font-weight:700; font-size:0.9rem;">${v}</span>
+        </div>
+    `).join('');
+    const ctx = document.getElementById('maintHealthDonut');
+    if (ctx && typeof Chart !== 'undefined') {
+        if (_maintHealthChart) _maintHealthChart.destroy();
+        _maintHealthChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(health).map(k => k.charAt(0).toUpperCase() + k.slice(1)),
+                datasets: [{ data: Object.values(health), backgroundColor: Object.keys(health).map(k => colors[k]), borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: true, cutout: '70%', plugins: { legend: { display: false } } }
+        });
+    }
+}
+
+function renderMaintenanceByTypeChart(byType) {
+    const ctx = document.getElementById('maintByTypeChart');
+    if (!ctx || typeof Chart === 'undefined') return;
+    if (_maintByTypeChart) _maintByTypeChart.destroy();
+    const labels = Object.keys(byType).map(k => (MAINT_TYPES && MAINT_TYPES[k]) ? MAINT_TYPES[k].name : k);
+    const colors = Object.keys(byType).map(k => (MAINT_TYPES && MAINT_TYPES[k]) ? MAINT_TYPES[k].color : '#64748b');
+    _maintByTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Healthy', data: Object.values(byType).map(v => v.ok || 0), backgroundColor: '#10b981' },
+                { label: 'Due Soon', data: Object.values(byType).map(v => v.due_soon || 0), backgroundColor: '#f59e0b' },
+                { label: 'Overdue', data: Object.values(byType).map(v => v.overdue || 0), backgroundColor: '#ef4444' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: true,
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+function renderTypeCategoryChart(types) {
+    const ctx = document.getElementById('maintTypeCategoryChart');
+    if (!ctx || typeof Chart === 'undefined') return;
+    const counts = {};
+    types.forEach(t => { const cat = t.category || 'uncategorized'; counts[cat] = (counts[cat] || 0) + 1; });
+    const labels = Object.keys(counts).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+    const data = Object.values(counts);
+    if (!labels.length) {
+        const parent = ctx.parentElement;
+        if (parent) parent.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:0.85rem;">No Maintenance Types Found</div>';
         return;
     }
-
-    if (selectedVehicle) updateMaintForSelected();
+    const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1'];
+    if (_maintCategoryChart) _maintCategoryChart.destroy();
+    _maintCategoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: palette.slice(0, labels.length), borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: true, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } } }
+    });
 }
+
+function renderTemplateCategoryChart(templates) {
+    const canvas = document.getElementById('maintTemplateCategoryChart');
+    if (!canvas) return;
+    const existing = Chart.getChart(canvas);
+    if (existing) existing.destroy();
+    const cats = {};
+    (templates || []).forEach(t => {
+        const cat = t.vehicle_category || 'Uncategorized';
+        cats[cat] = (cats[cat] || 0) + 1;
+    });
+    const labels = Object.keys(cats);
+    const values = Object.values(cats);
+    const colors = ['#8b5cf6','#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#94a3b8'];
+    new Chart(canvas, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } } }
+    });
+}
+
+function renderRecentTemplateActivity(templates) {
+    const container = document.getElementById('maint-template-activity');
+    if (!container) return;
+    if (!templates || !templates.length) {
+        container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:0.85rem;">No Templates Found</div>';
+        return;
+    }
+    const recent = templates.slice(0, 15);
+    const events = recent.map(t => {
+        let action = 'Updated', icon = 'edit', color = '#8b5cf6';
+        if (t.is_archived) { action = 'Archived'; icon = 'archive'; color = '#94a3b8'; }
+        else if (t.is_deleted) { action = 'Deleted'; icon = 'trash-2'; color = '#ef4444'; }
+        else if (!t.is_active) { action = 'Deactivated'; icon = 'pause-circle'; color = '#f59e0b'; }
+        else if (t.is_active && t.updated_at === t.created_at) { action = 'Created'; icon = 'plus-circle'; color = '#10b981'; }
+        const time = t.updated_at ? t.updated_at.split('T')[0] : '';
+        return { action, icon, color, name: t.name, time, cat: t.vehicle_category || '' };
+    });
+    container.innerHTML = events.map(e => `
+        <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--border-light); align-items:center;">
+            <div style="width:32px; height:32px; border-radius:50%; background:${e.color}15; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i data-lucide="${e.icon}" style="width:14px; color:${e.color};"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:0.82rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.name}</div>
+                <div style="font-size:0.7rem; color:var(--text-dim);">${e.action}${e.cat ? ' · ' + e.cat : ''}</div>
+            </div>
+            <span style="font-size:0.7rem; color:var(--text-dim); white-space:nowrap;">${e.time}</span>
+        </div>
+    `).join('');
+    lucide.createIcons({ el: container });
+}
+
+function renderRecentTypeActivity(types) {
+    const container = document.getElementById('maint-type-activity');
+    if (!container) return;
+    if (!types.length) {
+        container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-dim); font-size:0.85rem;">No Maintenance Types Found</div>';
+        return;
+    }
+    const recent = types.slice(0, 15);
+    const events = recent.map(t => {
+        let action = 'Updated', icon = 'edit', color = '#3b82f6';
+        if (t.is_deleted) { action = 'Deleted'; icon = 'trash-2'; color = '#ef4444'; }
+        else if (!t.is_active) { action = 'Deactivated'; icon = 'pause-circle'; color = '#f59e0b'; }
+        else if (t.is_active && t.updated_at === t.created_at) { action = 'Created'; icon = 'plus-circle'; color = '#10b981'; }
+        const time = t.updated_at ? t.updated_at.split('T')[0] : '';
+        const timeAgo = time ? time : '';
+        return { action, icon, color, name: t.name, time: timeAgo, cat: t.category || '' };
+    });
+    container.innerHTML = events.map(e => `
+        <div style="display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--border-light); align-items:center;">
+            <div style="width:32px; height:32px; border-radius:50%; background:${e.color}15; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i data-lucide="${e.icon}" style="width:14px; color:${e.color};"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:0.82rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e.name}</div>
+                <div style="font-size:0.7rem; color:var(--text-dim);">${e.action}${e.cat ? ' · ' + e.cat : ''}</div>
+            </div>
+            <span style="font-size:0.7rem; color:var(--text-dim); white-space:nowrap;">${e.time}</span>
+        </div>
+    `).join('');
+    lucide.createIcons({ el: container });
+}
+
+function switchMaintTab(tab) {
+    maintTabState = tab;
+    document.querySelectorAll('.maint-tab-btn').forEach(b => {
+        b.classList.remove('primary');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-secondary)';
+    });
+    const activeBtn = document.querySelector(`.maint-tab-btn[data-tab="${tab}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('primary');
+        activeBtn.style.background = 'var(--brand-primary)';
+        activeBtn.style.color = '#fff';
+    }
+    renderMaintTab(tab, maintDashboardData);
+}
+
+async function renderMaintTab(tab, data) {
+    const tc = document.getElementById('maint-tab-content');
+    if (!tc) return;
+    if (!data) {
+        tc.innerHTML = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Loading...</div>';
+        return;
+    }
+    let html = '';
+    if (tab === 'upcoming') {
+        const resp = await fetch('/api/maintenance/planner/scheduler/upcoming?page=1&page_size=20', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            html = renderMaintTable(result.items || [], ['Vehicle', 'Type', 'Rule', 'Due Date', 'KM Left', 'Days Left', 'Priority'], r => [
+                r.vehicle_name, r.type_name || '-', r.rule_name || '-',
+                r.next_due_date ? r.next_due_date.split('T')[0] : 'N/A',
+                r.km_remaining != null ? Math.round(r.km_remaining).toLocaleString() + ' km' : 'N/A',
+                r.days_remaining != null ? r.days_remaining + ' days' : 'N/A',
+                `<span class="stats-badge ${r.priority === 'critical' ? 'danger' : r.priority === 'high' ? 'danger' : r.priority === 'medium' ? 'warning' : 'primary'}">${r.priority || 'low'}</span>`
+            ]);
+            if (result.total_pages > 1) html += renderPagination(result, 'upcoming');
+        } else {
+            html = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No upcoming maintenance</div>';
+        }
+    } else if (tab === 'overdue') {
+        const resp = await fetch('/api/maintenance/planner/scheduler/overdue?page=1&page_size=20', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            html = renderMaintTable(result.items || [], ['Vehicle', 'Type', 'Rule', 'Days Overdue', 'KM Overdue', 'Risk Level'], r => [
+                r.vehicle_name, r.type_name || '-', r.rule_name || '-',
+                r.days_overdue ? r.days_overdue + ' days' : 'N/A',
+                r.km_overdue ? Math.round(r.km_overdue).toLocaleString() + ' km' : 'N/A',
+                `<span class="stats-badge ${r.risk_level === 'Critical' ? 'danger' : r.risk_level === 'High' ? 'warning' : r.risk_level === 'Medium' ? 'warning' : 'primary'}">${r.risk_level || 'Low'}</span>`
+            ]);
+            if (result.total_pages > 1) html += renderPagination(result, 'overdue');
+        } else {
+            html = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No overdue items</div>';
+        }
+    } else if (tab === 'calendar') {
+        const resp = await fetch(`/api/maintenance/planner/scheduler/calendar?year=${calYear}&month=${calMonth}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            const events = result.events || [];
+            const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            html = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <button class="glass-btn" onclick="calNav(-1)" style="padding:6px 12px; font-size:0.8rem; border:none; cursor:pointer; border-radius:6px;">&larr; Prev</button>
+                <span style="font-weight:700; font-size:1rem;">${monthNames[calMonth - 1]} ${calYear}</span>
+                <button class="glass-btn" onclick="calNav(1)" style="padding:6px 12px; font-size:0.8rem; border:none; cursor:pointer; border-radius:6px;">Next &rarr;</button>
+            </div>`;
+            html += '<div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center;">';
+            ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { html += `<div style="font-weight:700; padding:8px; font-size:0.75rem; color:var(--text-dim);">${d}</div>`; });
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dayEvents = events.filter(e => e.day === i);
+                const hasOverdue = dayEvents.some(e => e.is_overdue);
+                const hasUpcoming = dayEvents.some(e => !e.is_overdue);
+                const bg = hasOverdue ? '#fef2f2' : hasUpcoming ? '#f0f4ff' : 'transparent';
+                const evNames = dayEvents.map(e => `${e.vehicle_name}: ${e.type_name}`).join('\n');
+                html += `<div style="padding:8px; border-radius:8px; background:${bg}; min-height:60px; font-size:0.78rem; cursor:${dayEvents.length ? 'pointer' : 'default'};" title="${evNames.replace(/"/g, '&quot;')}">${i}${dayEvents.length ? `<div style="font-size:0.65rem; margin-top:4px;">${dayEvents.length} item${dayEvents.length > 1 ? 's' : ''}</div>` : ''}</div>`;
+            }
+            html += '</div>';
+        } else {
+            html = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No calendar data</div>';
+        }
+    } else if (tab === 'activity') {
+        const resp = await fetch('/api/maintenance/planner/scheduler/activity?limit=50', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            const activities = result.activities || [];
+            html = activities.length ? activities.map(a => {
+                const icon = a.type === 'rule_change' ? 'settings' : 'wrench';
+                const color = a.type === 'rule_change' ? '#8b5cf6' : '#3b82f6';
+                const bg = a.type === 'rule_change' ? '#f3e8ff' : '#dbeafe';
+                return `
+                <div style="display:flex; gap:16px; padding:12px 0; border-bottom:1px solid var(--border-light);">
+                    <div style="width:40px; height:40px; border-radius:50%; background:${bg}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i data-lucide="${icon}" style="width:18px; color:${color};"></i>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600; font-size:0.85rem;">${a.description || 'Activity'}</div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);">${a.reason || ''} — ${a.created_at ? a.created_at.split('T')[0] : ''}</div>
+                    </div>
+                    <span class="stats-badge ${a.type === 'rule_change' ? 'primary' : 'success'}">${(a.type || '').replace('_', ' ')}</span>
+                </div>`;
+            }).join('') : '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No recent activity</div>';
+        } else {
+            html = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load activity</div>';
+        }
+    } else if (tab === 'workshops') {
+        const resp = await fetch('/api/maintenance/workshops', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            const workshops = result.workshops || [];
+            html = workshops.length ? workshops.map(w => `
+                <div class="premium-card" style="padding:20px; margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div><strong>${w.name}</strong> <span style="font-size:0.75rem; color:var(--text-dim);">${w.code || ''}</span></div>
+                        <span class="stats-badge primary">${w.rating ? w.rating + '/5' : 'N/A'}</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">${w.address || ''} — ${w.city || ''}</div>
+                    <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">${w.phone || ''} ${w.email || ''}</div>
+                </div>
+            `).join('') : '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No workshops configured</div>';
+        } else {
+            html = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load workshops</div>';
+        }
+    }
+    tc.innerHTML = html;
+    lucide.createIcons({ el: tc });
+}
+
+function renderMaintTable(items, columns, rowRenderer) {
+    if (!items.length) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No data</div>';
+    return `<table class="modern-table" style="width:100%;"><thead><tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${items.map(rowRenderer).map(r => `<tr>${r.map(c => `<td>${c || ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function renderPagination(result, tab) {
+    return `<div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding:12px;"><span style="font-size:0.8rem; color:var(--text-dim);">${result.total} total items</span><div style="display:flex; gap:6px;">${Array.from({length: Math.min(result.total_pages, 5)}, (_, i) => `<button class="glass-btn" onclick="loadMaintPage('${tab}', ${i + 1})" style="padding:6px 12px; font-size:0.75rem;">${i + 1}</button>`).join('')}</div></div>`;
+}
+
+async function loadMaintPage(tab, page) {
+    const url = `/api/maintenance/planner/scheduler/${tab}?page=${page}&page_size=20`;
+    const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!resp.ok) return;
+    const result = await resp.json();
+    const tc = document.getElementById('maint-tab-content');
+    if (!tc) return;
+    let cols, renderer;
+    if (tab === 'upcoming') { cols = ['Vehicle', 'Type', 'Rule', 'Due Date', 'KM Left', 'Days Left', 'Priority']; renderer = r => [r.vehicle_name, r.type_name || '-', r.rule_name || '-', r.next_due_date ? r.next_due_date.split('T')[0] : 'N/A', r.km_remaining != null ? Math.round(r.km_remaining).toLocaleString() + ' km' : 'N/A', r.days_remaining != null ? r.days_remaining + ' days' : 'N/A', `<span class="stats-badge ${r.priority === 'critical' ? 'danger' : r.priority === 'high' ? 'danger' : r.priority === 'medium' ? 'warning' : 'primary'}">${r.priority || 'low'}</span>`]; }
+    else { cols = ['Vehicle', 'Type', 'Rule', 'Days Overdue', 'KM Overdue', 'Risk Level']; renderer = r => [r.vehicle_name, r.type_name || '-', r.rule_name || '-', r.days_overdue ? r.days_overdue + ' days' : 'N/A', r.km_overdue ? Math.round(r.km_overdue).toLocaleString() + ' km' : 'N/A', `<span class="stats-badge ${r.risk_level === 'Critical' ? 'danger' : r.risk_level === 'High' ? 'warning' : r.risk_level === 'Medium' ? 'warning' : 'primary'}">${r.risk_level || 'Low'}</span>`]; }
+    tc.innerHTML = renderMaintTable(result.items || [], cols, renderer) + (result.total_pages > 1 ? renderPagination(result, tab) : '');
+}
+
+function calNav(dir) {
+    calMonth += dir;
+    if (calMonth > 12) { calMonth = 1; calYear++; }
+    if (calMonth < 1) { calMonth = 12; calYear--; }
+    renderMaintTab('calendar', maintDashboardData);
+}
+
+async function recalculateFleet() {
+    if (!authToken) return;
+    const btn = document.querySelector('[onclick="recalculateFleet()"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:14px; animation:spin 1s linear infinite;"></i> Recalculating...'; lucide.createIcons({ el: btn }); }
+    try {
+        const resp = await fetch('/api/maintenance/planner/scheduler/recalculate', { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+            const result = await resp.json();
+            maintDashboardData = null;
+            await loadMaintenanceDashboard();
+            if (btn) { btn.innerHTML = `<i data-lucide="check-circle" style="width:14px;"></i> Done (${result.health_score || 0}%)`; lucide.createIcons({ el: btn }); }
+            setTimeout(() => { if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;"></i> Recalculate Fleet'; lucide.createIcons({ el: btn }); } }, 2000);
+        } else {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;"></i> Recalculate Fleet'; lucide.createIcons({ el: btn }); }
+        }
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;"></i> Recalculate Fleet'; lucide.createIcons({ el: btn }); }
+    }
+}
+
+function openMaintenanceLogModal() {
+    const modal = document.getElementById('maint-log-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden-view');
+    fetchMaintLogDropdowns();
+}
+
+function closeMaintenanceLogModal() {
+    const modal = document.getElementById('maint-log-modal');
+    if (modal) { modal.style.display = 'none'; modal.classList.add('hidden-view'); }
+    document.getElementById('maint-log-form')?.reset();
+}
+
+async function fetchMaintLogDropdowns() {
+    try {
+        const vResp = await fetch('/api/v1/vehicles/live?limit=100', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (vResp.ok) {
+            const vehicles = await vResp.json();
+            const vSel = document.getElementById('maint-log-vehicle');
+            if (vSel && vehicles.length) vSel.innerHTML = vehicles.map(v => `<option value="${v.id}">${v.name || v.plate || 'Vehicle ' + v.id}</option>`).join('');
+        }
+    } catch(e) {}
+    const typeSel = document.getElementById('maint-log-type');
+    if (typeSel) {
+        try {
+            const tResp = await fetch('/api/maintenance/planner/types?page_size=50&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (tResp.ok) {
+                const tData = await tResp.json();
+                const types = tData.items || tData || [];
+                typeSel.innerHTML = '<option value="">-- Select --</option>' + types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            } else {
+                const defaultNames = { oil_change: 'Oil Change', filter_change: 'Filter Change', brake_service: 'Brake Service', tire_rotation: 'Tire Rotation', transmission: 'Transmission Service', coolant: 'Coolant Flush', spark_plugs: 'Spark Plugs', inspection: 'General Inspection' };
+                typeSel.innerHTML = '<option value="">-- Select --</option>' + Object.entries(MAINT_TYPES).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+            }
+        } catch(e) {
+            const defaultNames = { oil_change: 'Oil Change', filter_change: 'Filter Change', brake_service: 'Brake Service', tire_rotation: 'Tire Rotation', transmission: 'Transmission Service', coolant: 'Coolant Flush', spark_plugs: 'Spark Plugs', inspection: 'General Inspection' };
+            typeSel.innerHTML = '<option value="">-- Select --</option>' + Object.entries(MAINT_TYPES).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('');
+        }
+    }
+    try {
+        const wResp = await fetch('/api/maintenance/workshops', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (wResp.ok) {
+            const result = await wResp.json();
+            const workshops = result.workshops || [];
+            const wSel = document.getElementById('maint-log-workshop');
+            if (wSel) wSel.innerHTML = '<option value="">-- Select --</option>' + workshops.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+        }
+    } catch(e) {}
+}
+
+async function submitMaintenanceLog(e) {
+    e.preventDefault();
+    if (!authToken) return;
+    const payload = {
+        device_id: parseInt(document.getElementById('maint-log-vehicle')?.value) || 0,
+        schedule_id: parseInt(document.getElementById('maint-log-type')?.value) || 1,
+        service_value: parseFloat(document.getElementById('maint-log-odo')?.value) || 0,
+        service_type: document.getElementById('maint-log-stype')?.value || 'scheduled',
+        workshop_id: parseInt(document.getElementById('maint-log-workshop')?.value) || null,
+        technician: document.getElementById('maint-log-tech')?.value || '',
+        cost: parseFloat(document.getElementById('maint-log-cost')?.value) || 0,
+        notes: document.getElementById('maint-log-notes')?.value || ''
+    };
+    try {
+        const resp = await fetch('/api/maintenance/log', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
+        if (resp.ok) { closeMaintenanceLogModal(); showNotification('Maintenance log recorded', 'scheduled'); loadMaintenanceDashboard(); }
+        else { showNotification('Failed to save log', 'fault'); }
+    } catch(err) { showNotification('Error saving log', 'fault'); }
+}
+
+window.submitMaintenanceLog = submitMaintenanceLog;
+window.openMaintenanceLogForm = openMaintenanceLogModal;
+
+// ==================== PLANNER & RULE ENGINE ====================
+
+let plannerTabState = 'types';
+
+function initPlanner() {
+    loadPlannerDashboard();
+}
+
+async function loadPlannerDashboard() {
+    if (!authToken) return;
+    try {
+        const [typesResp, rulesResp, templatesResp] = await Promise.all([
+            fetch('/api/maintenance/planner/types', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/rules', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/templates', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        const types = typesResp.ok ? await typesResp.json() : { items: [], total: 0 };
+        const rules = rulesResp.ok ? await rulesResp.json() : { items: [], total: 0 };
+        let templates = templatesResp.ok ? await templatesResp.json() : { items: [], total: 0 };
+        if (!templates.items || templates.items.length === 0) {
+            const seedResp = await fetch('/api/maintenance/planner/templates/seed', { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (seedResp.ok) {
+                const reResp = await fetch('/api/maintenance/planner/templates', { headers: { 'Authorization': `Bearer ${authToken}` } });
+                templates = reResp.ok ? await reResp.json() : templates;
+            }
+        }
+        const hasZeroRules = (templates.items || []).some(t => (t.rule_count || 0) === 0);
+        if (hasZeroRules) {
+            const valResp = await fetch('/api/maintenance/planner/validate', { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (valResp.ok) {
+                const reResp = await fetch('/api/maintenance/planner/templates', { headers: { 'Authorization': `Bearer ${authToken}` } });
+                templates = reResp.ok ? await reResp.json() : templates;
+            }
+        }
+        renderPlannerTab(plannerTabState, { types, rules, templates });
+    } catch (e) {
+        console.error('Planner load error:', e);
+        const tc = document.getElementById('planner-tab-content');
+        if (tc) tc.innerHTML = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load planner data.</div>';
+    }
+}
+
+function switchPlannerTab(tab) {
+    plannerTabState = tab;
+    document.querySelectorAll('.planner-tab-btn').forEach(b => {
+        b.classList.remove('primary');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-secondary)';
+    });
+    const activeBtn = document.querySelector(`.planner-tab-btn[data-planner="${tab}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('primary');
+        activeBtn.style.background = 'var(--brand-primary)';
+        activeBtn.style.color = '#fff';
+    }
+    loadPlannerDashboard();
+}
+
+async function renderPlannerTab(tab, cachedData) {
+    const tc = document.getElementById('planner-tab-content');
+    if (!tc) return;
+    let html = '';
+
+    if (tab === 'types') {
+        html = await renderTypesTable(cachedData ? cachedData.types : null);
+    } else if (tab === 'rules') {
+        html = await renderRulesTable(cachedData ? cachedData.rules : null);
+    } else if (tab === 'templates') {
+        html = await renderTemplatesTable(cachedData ? cachedData.templates : null);
+    } else if (tab === 'plans') {
+        html = await renderPlansTable();
+    } else if (tab === 'overrides') {
+        html = await renderOverridesTable();
+    } else if (tab === 'history') {
+        html = await renderHistoryTable();
+    }
+
+    tc.innerHTML = html || '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No data available</div>';
+    lucide.createIcons({ el: tc });
+}
+
+// ==================== MAINTENANCE TYPES MANAGEMENT ====================
+
+let typesState = { page: 1, pageSize: 50, search: '', category: '', status: 'active', sortBy: 'name', sortOrder: 'asc', total: 0, totalPages: 0 };
+
+async function renderTypesTable(typesData) {
+    if (!typesData) {
+        typesData = await loadTypesData();
+    }
+    const items = typesData.items || [];
+    const total = typesData.total || 0;
+    const totalPages = typesData.total_pages || 1;
+
+    // Fetch summary and categories for the toolbar
+    let summary = { total: 0, active: 0, inactive: 0, deleted: 0, system: 0 };
+    let categories = [];
+    try {
+        const [sResp, cResp] = await Promise.all([
+            fetch('/api/maintenance/planner/types/summary', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/types/categories', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        if (sResp.ok) summary = await sResp.json();
+        if (cResp.ok) categories = await cResp.json();
+    } catch (e) {}
+
+    const statusOpts = ['active','inactive','deleted','all'];
+    const currentStatus = typesState.status;
+    const currentCategory = typesState.category;
+    const currentSearch = typesState.search;
+
+    let html = `
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px;">
+        <div class="premium-card" style="padding:16px; text-align:center;"><div style="font-size:1.8rem; font-weight:800; color:var(--brand-primary);">${summary.total}</div><div style="font-size:0.75rem; color:var(--text-dim); font-weight:600; text-transform:uppercase;">Total Types</div></div>
+        <div class="premium-card" style="padding:16px; text-align:center;"><div style="font-size:1.8rem; font-weight:800; color:var(--brand-success);">${summary.active}</div><div style="font-size:0.75rem; color:var(--text-dim); font-weight:600; text-transform:uppercase;">Active</div></div>
+        <div class="premium-card" style="padding:16px; text-align:center;"><div style="font-size:1.8rem; font-weight:800; color:var(--brand-warning);">${summary.inactive}</div><div style="font-size:0.75rem; color:var(--text-dim); font-weight:600; text-transform:uppercase;">Inactive</div></div>
+        <div class="premium-card" style="padding:16px; text-align:center;"><div style="font-size:1.8rem; font-weight:800; color:var(--brand-danger);">${summary.deleted}</div><div style="font-size:0.75rem; color:var(--text-dim); font-weight:600; text-transform:uppercase;">Deleted</div></div>
+        <div class="premium-card" style="padding:16px; text-align:center;"><div style="font-size:1.8rem; font-weight:800; color:var(--text-secondary);">${summary.system}</div><div style="font-size:0.75rem; color:var(--text-dim); font-weight:600; text-transform:uppercase;">System</div></div>
+    </div>
+    <div class="premium-card" style="padding:20px;">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+            <div class="dash-search-container" style="flex:1; min-width:200px;">
+                <i data-lucide="search" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
+                <input type="text" id="types-search" placeholder="Search types..." value="${currentSearch}" onkeyup="if(event.key==='Enter'){ typesState.search=this.value; typesState.page=1; loadPlannerDashboard(); }" style="width:100%; padding:10px 14px 10px 40px; border-radius:10px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <select id="types-category-filter" onchange="typesState.category=this.value; typesState.page=1; loadPlannerDashboard();" style="padding:10px 14px; border-radius:10px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; min-width:140px;">
+                <option value="">All Categories</option>
+                ${categories.map(c => `<option value="${c}" ${c === currentCategory ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+            <select id="types-status-filter" onchange="typesState.status=this.value; typesState.page=1; loadPlannerDashboard();" style="padding:10px 14px; border-radius:10px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; min-width:120px;">
+                <option value="active" ${currentStatus==='active'?'selected':''}>Active</option>
+                <option value="inactive" ${currentStatus==='inactive'?'selected':''}>Inactive</option>
+                <option value="deleted" ${currentStatus==='deleted'?'selected':''}>Deleted</option>
+                <option value="all" ${currentStatus==='all'?'selected':''}>All</option>
+            </select>
+            <button class="glass-btn" onclick="typesState.search=''; document.getElementById('types-search').value=''; typesState.page=1; loadPlannerDashboard();" style="padding:10px 16px;" title="Refresh"><i data-lucide="refresh-cw" style="width:16px;"></i></button>
+            <button class="glass-btn primary" onclick="openTypeModal()" style="padding:10px 16px;"><i data-lucide="plus" style="width:16px;"></i> Add Type</button>
+            <button class="glass-btn" onclick="exportTypesCSV()" style="padding:10px 16px;" title="Export CSV"><i data-lucide="download" style="width:16px;"></i></button>
+        </div>
+
+        <div style="overflow-x:auto;">
+        <table class="modern-table" style="width:100%;">
+            <thead><tr>
+                <th onclick="sortTypes('name')" style="cursor:pointer;">Name ${typesState.sortBy==='name'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th onclick="sortTypes('category')" style="cursor:pointer;">Category ${typesState.sortBy==='category'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th onclick="sortTypes('default_interval_km')" style="cursor:pointer;">Default KM ${typesState.sortBy==='default_interval_km'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th onclick="sortTypes('default_interval_days')" style="cursor:pointer;">Default Days ${typesState.sortBy==='default_interval_days'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th onclick="sortTypes('priority')" style="cursor:pointer;">Priority ${typesState.sortBy==='priority'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th>Engine Hrs</th>
+                <th onclick="sortTypes('updated_at')" style="cursor:pointer;">Updated ${typesState.sortBy==='updated_at'?(typesState.sortOrder==='asc'?'▲':'▼'):''}</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr></thead>
+            <tbody>
+                ${items.length === 0 ? '<tr><td colspan="9" style="text-align:center; padding:40px; color:var(--text-dim);">No types found.</td></tr>' :
+                items.map(t => {
+                    const isDeleted = t.is_deleted;
+                    const isActive = t.is_active && !isDeleted;
+                    const badgeClass = isDeleted ? 'danger' : (isActive ? 'success' : 'warning');
+                    const badgeText = isDeleted ? 'Deleted' : (isActive ? 'Active' : 'Inactive');
+                    const priorityClass = t.priority === 'critical' ? 'danger' : (t.priority === 'high' ? 'warning' : 'primary');
+                    return `<tr>
+                        <td><strong>${t.name}</strong>${t.is_system ? ' <span style="font-size:0.65rem; color:var(--text-dim);">[System]</span>' : ''}</td>
+                        <td>${t.category || '—'}</td>
+                        <td>${t.default_interval_km > 0 ? t.default_interval_km.toLocaleString() + ' km' : '—'}</td>
+                        <td>${t.default_interval_days > 0 ? t.default_interval_days + ' days' : '—'}</td>
+                        <td><span class="stats-badge ${priorityClass}">${t.priority || 'medium'}</span></td>
+                        <td>${t.default_engine_hours != null ? t.default_engine_hours + ' hrs' : '—'}</td>
+                        <td style="font-size:0.75rem; color:var(--text-dim);">${t.updated_at ? t.updated_at.split('T')[0] : '—'}</td>
+                        <td><span class="stats-badge ${badgeClass}">${badgeText}</span></td>
+                        <td>
+                            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                <button class="glass-btn secondary" onclick="editType(${t.id})" style="padding:4px 8px; font-size:0.7rem;" title="Edit"><i data-lucide="pencil" style="width:12px;"></i></button>
+                                ${isDeleted ? 
+                                    `<button class="glass-btn primary" onclick="restoreType(${t.id})" style="padding:4px 8px; font-size:0.7rem;" title="Restore"><i data-lucide="rotate-ccw" style="width:12px;"></i></button>` :
+                                    (isActive ? 
+                                        `<button class="glass-btn warning" onclick="deactivateType(${t.id})" style="padding:4px 8px; font-size:0.7rem;" title="Deactivate"><i data-lucide="pause" style="width:12px;"></i></button>` :
+                                        `<button class="glass-btn success" onclick="activateType(${t.id})" style="padding:4px 8px; font-size:0.7rem;" title="Activate"><i data-lucide="play" style="width:12px;"></i></button>`
+                                    )
+                                }
+                                ${!isDeleted && !t.is_system ? 
+                                    `<button class="glass-btn danger" onclick="deleteType(${t.id})" style="padding:4px 8px; font-size:0.7rem;" title="Delete"><i data-lucide="trash-2" style="width:12px;"></i></button>` : ''
+                                }
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+            <span style="font-size:0.8rem; color:var(--text-dim);">${total} type${total !== 1 ? 's' : ''}</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+                <button class="glass-btn" onclick="typesState.page=Math.max(1,typesState.page-1); loadPlannerDashboard();" ${typesState.page <= 1 ? 'disabled style="opacity:0.4;"' : ''} style="padding:6px 12px; font-size:0.75rem;"><i data-lucide="chevron-left" style="width:14px;"></i></button>
+                ${generatePagination(totalPages, typesState.page).map(p => 
+                    `<button class="glass-btn ${p === typesState.page ? 'primary' : ''}" onclick="typesState.page=${p}; loadPlannerDashboard();" style="padding:6px 12px; font-size:0.75rem; ${p === typesState.page ? 'background:var(--brand-primary); color:#fff;' : ''}">${p}</button>`
+                ).join('')}
+                <button class="glass-btn" onclick="typesState.page=Math.min(${totalPages},typesState.page+1); loadPlannerDashboard();" ${typesState.page >= totalPages ? 'disabled style="opacity:0.4;"' : ''} style="padding:6px 12px; font-size:0.75rem;"><i data-lucide="chevron-right" style="width:14px;"></i></button>
+            </div>
+        </div>
+    </div>`;
+    return html;
+}
+
+function sortTypes(field) {
+    if (typesState.sortBy === field) {
+        typesState.sortOrder = typesState.sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        typesState.sortBy = field;
+        typesState.sortOrder = 'asc';
+    }
+    typesState.page = 1;
+    loadPlannerDashboard();
+}
+
+function generatePagination(totalPages, current) {
+    const pages = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+        pages.push(1);
+        if (current > 3) pages.push('...');
+        for (let i = Math.max(2, current - 1); i <= Math.min(totalPages - 1, current + 1); i++) pages.push(i);
+        if (current < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+    }
+    return pages.filter(p => p !== '...' ? true : Math.random() > -1);
+}
+
+async function loadTypesData() {
+    const params = new URLSearchParams({
+        page: typesState.page, page_size: typesState.pageSize,
+        sort_by: typesState.sortBy, sort_order: typesState.sortOrder
+    });
+    if (typesState.search) params.set('search', typesState.search);
+    if (typesState.category) params.set('category', typesState.category);
+    if (typesState.status === 'active') { params.set('active_only', 'true'); }
+    else if (typesState.status === 'inactive') { params.set('active_only', 'false'); }
+    else if (typesState.status === 'deleted') { params.set('deleted_only', 'true'); }
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types?${params}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = resp.ok ? await resp.json() : { items: [], total: 0 };
+        typesState.total = data.total;
+        typesState.totalPages = data.total_pages || 1;
+        return data;
+    } catch (e) {
+        return { items: [], total: 0 };
+    }
+}
+
+function exportTypesCSV() {
+    const rows = [['Name','Slug','Category','Default KM','Default Days','Engine Hours','Priority','Status','Created']];
+    // Fetch all types and export
+    fetch('/api/maintenance/planner/types?page_size=1000', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.json())
+        .then(data => {
+            (data.items || []).forEach(t => {
+                rows.push([t.name, t.slug, t.category||'', t.default_interval_km||'', t.default_interval_days||'', t.default_engine_hours||'', t.priority||'medium', t.is_deleted ? 'Deleted' : (t.is_active ? 'Active' : 'Inactive'), t.created_at||'']);
+            });
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'maintenance_types.csv';
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showNotification('CSV exported', 'scheduled');
+        })
+        .catch(() => showNotification('Export failed', 'fault'));
+}
+
+// ==================== TYPE MODAL ====================
+
+function openTypeModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+    <div class="premium-card" style="width:560px; max-width:92vw; max-height:90vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.2rem; font-weight:700; color:var(--text-primary);"><i data-lucide="settings" style="width:20px; vertical-align:middle; margin-right:8px;"></i> Add Maintenance Type</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1.4rem; padding:4px;">&times;</button>
+        </div>
+        <form id="type-form" onsubmit="submitTypeModal(event)" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="grid-column:1/-1;">
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Name *</label>
+                <input type="text" id="type-name" required placeholder="e.g., Engine Oil" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Slug</label>
+                <input type="text" id="type-slug" placeholder="e.g., engine_oil" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Category</label>
+                <input type="text" id="type-category" placeholder="e.g., engine, brakes" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Priority</label>
+                <select id="type-priority" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Default Interval (KM)</label>
+                <input type="number" id="type-km" placeholder="5000" min="0" step="100" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Default Interval (Days)</label>
+                <input type="number" id="type-days" placeholder="180" min="0" step="1" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Engine Hours</label>
+                <input type="number" id="type-hours" placeholder="e.g., 250" min="0" step="10" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Color</label>
+                <input type="color" id="type-color" value="#3b82f6" style="width:100%; height:40px; padding:4px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); cursor:pointer;">
+            </div>
+            <div style="grid-column:1/-1;">
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Description</label>
+                <textarea id="type-description" rows="2" placeholder="Optional description..." style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;"></textarea>
+            </div>
+            <div style="grid-column:1/-1; display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border-light); background:transparent; color:var(--text-secondary); cursor:pointer; font-weight:600; font-size:0.85rem;">Cancel</button>
+                <button type="submit" style="flex:1; padding:12px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600; font-size:0.85rem;"><i data-lucide="check" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Create Type</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+}
+
+async function submitTypeModal(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Creating...';
+    const payload = {
+        name: document.getElementById('type-name').value.trim(),
+        slug: document.getElementById('type-slug').value.trim() || undefined,
+        category: document.getElementById('type-category').value.trim() || null,
+        priority: document.getElementById('type-priority').value,
+        default_interval_km: parseFloat(document.getElementById('type-km').value) || 0,
+        default_interval_days: parseInt(document.getElementById('type-days').value) || 0,
+        default_engine_hours: parseFloat(document.getElementById('type-hours').value) || null,
+        color: document.getElementById('type-color').value,
+        description: document.getElementById('type-description').value.trim() || null
+    };
+    if (!payload.name) { showNotification('Name is required', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="check" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Create Type'; lucide.createIcons(); return; }
+    try {
+        const resp = await fetch('/api/maintenance/planner/types', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            closeModal();
+            typesState.page = 1;
+            await loadPlannerDashboard();
+            await refreshMaintDashboardCache();
+            showNotification('Type created successfully', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to create type', 'fault');
+        }
+    } catch (err) { showNotification('Error creating type', 'fault'); }
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="check" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Create Type'; lucide.createIcons();
+}
+
+function closeModal() { document.querySelector('.modal-overlay')?.remove(); }
+
+async function editType(id) {
+    let typeData = null;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) typeData = await resp.json();
+    } catch (e) {}
+    if (!typeData) { showNotification('Could not load type data', 'fault'); return; }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+    <div class="premium-card" style="width:560px; max-width:92vw; max-height:90vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.2rem; font-weight:700; color:var(--text-primary);"><i data-lucide="edit" style="width:20px; vertical-align:middle; margin-right:8px;"></i> Edit: ${typeData.name}</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1.4rem; padding:4px;">&times;</button>
+        </div>
+        <form id="edit-type-form" onsubmit="submitEditTypeModal(event, ${id})" style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div style="grid-column:1/-1;">
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Name *</label>
+                <input type="text" id="edit-type-name" required value="${typeData.name}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Slug</label>
+                <input type="text" id="edit-type-slug" value="${typeData.slug || ''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Category</label>
+                <input type="text" id="edit-type-category" value="${typeData.category || ''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Priority</label>
+                <select id="edit-type-priority" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    ${['low','medium','high','critical'].map(p => `<option value="${p}" ${typeData.priority === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')}
+                </select>
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Default Interval (KM)</label>
+                <input type="number" id="edit-type-km" value="${typeData.default_interval_km || ''}" min="0" step="100" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Default Interval (Days)</label>
+                <input type="number" id="edit-type-days" value="${typeData.default_interval_days || ''}" min="0" step="1" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Engine Hours</label>
+                <input type="number" id="edit-type-hours" value="${typeData.default_engine_hours || ''}" min="0" step="10" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Color</label>
+                <input type="color" id="edit-type-color" value="${typeData.color || '#3b82f6'}" style="width:100%; height:40px; padding:4px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); cursor:pointer;">
+            </div>
+            <div style="grid-column:1/-1;">
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">Description</label>
+                <textarea id="edit-type-description" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;">${typeData.description || ''}</textarea>
+            </div>
+            <div style="grid-column:1/-1; display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border-light); background:transparent; color:var(--text-secondary); cursor:pointer; font-weight:600; font-size:0.85rem;">Cancel</button>
+                <button type="submit" style="flex:1; padding:12px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600; font-size:0.85rem;"><i data-lucide="save" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Save Changes</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+}
+
+async function submitEditTypeModal(e, id) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    const payload = {
+        name: document.getElementById('edit-type-name').value.trim(),
+        slug: document.getElementById('edit-type-slug').value.trim() || null,
+        category: document.getElementById('edit-type-category').value.trim() || null,
+        priority: document.getElementById('edit-type-priority').value,
+        default_interval_km: parseFloat(document.getElementById('edit-type-km').value) || 0,
+        default_interval_days: parseInt(document.getElementById('edit-type-days').value) || 0,
+        default_engine_hours: parseFloat(document.getElementById('edit-type-hours').value) || null,
+        color: document.getElementById('edit-type-color').value,
+        description: document.getElementById('edit-type-description').value.trim() || null
+    };
+    if (!payload.name) { showNotification('Name is required', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Save Changes'; lucide.createIcons(); return; }
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            closeModal();
+            await loadPlannerDashboard();
+            await refreshMaintDashboardCache();
+            showNotification('Type updated successfully', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to update type', 'fault');
+        }
+    } catch (err) { showNotification('Error updating type', 'fault'); }
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Save Changes'; lucide.createIcons();
+}
+
+function deleteType(id) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+    <div class="premium-card" style="width:400px; max-width:90vw; padding:32px; text-align:center;">
+        <div style="font-size:3rem; margin-bottom:16px; color:var(--brand-danger);"><i data-lucide="alert-triangle" style="width:48px; height:48px;"></i></div>
+        <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:8px; color:var(--text-primary);">Delete Maintenance Type?</h3>
+        <p style="color:var(--text-dim); font-size:0.85rem; margin-bottom:20px;">This will soft-delete this type. You can restore it later.</p>
+        <div style="display:flex; gap:10px;">
+            <button onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--border-light); background:transparent; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+            <button onclick="confirmDeleteType(${id})" style="flex:1; padding:12px; border-radius:8px; border:none; background:var(--brand-danger); color:#fff; cursor:pointer; font-weight:600;"><i data-lucide="trash-2" style="width:16px; vertical-align:middle; margin-right:6px;"></i> Delete</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+}
+
+async function confirmDeleteType(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+            closeModal();
+            await loadPlannerDashboard();
+            await refreshMaintDashboardCache();
+            showNotification('Type deleted', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to delete', 'fault');
+        }
+    } catch (err) { showNotification('Error deleting type', 'fault'); }
+}
+
+async function restoreType(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}/restore`, {
+            method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) { await loadPlannerDashboard(); await refreshMaintDashboardCache(); showNotification('Type restored', 'scheduled'); }
+        else { const err = await resp.json(); showNotification(err.detail || 'Failed to restore', 'fault'); }
+    } catch (err) { showNotification('Error restoring type', 'fault'); }
+}
+
+async function activateType(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}/activate`, {
+            method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) { await loadPlannerDashboard(); await refreshMaintDashboardCache(); showNotification('Type activated', 'scheduled'); }
+        else { const err = await resp.json(); showNotification(err.detail || 'Failed to activate', 'fault'); }
+    } catch (err) { showNotification('Error activating type', 'fault'); }
+}
+
+async function deactivateType(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/types/${id}/deactivate`, {
+            method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) { await loadPlannerDashboard(); await refreshMaintDashboardCache(); showNotification('Type deactivated', 'scheduled'); }
+        else { const err = await resp.json(); showNotification(err.detail || 'Failed to deactivate', 'fault'); }
+    } catch (err) { showNotification('Error deactivating type', 'fault'); }
+}
+
+async function renderRulesTable(rulesData) {
+    if (!rulesData) {
+        const resp = await fetch('/api/maintenance/planner/rules', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        rulesData = resp.ok ? await resp.json() : { items: [], total: 0 };
+    }
+    const items = rulesData.items || [];
+    if (!items.length) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No rules configured.</div>';
+    return `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><span style="font-size:0.85rem; color:var(--text-dim);">${rulesData.total} rules</span><button class="glass-btn primary" onclick="openRuleModal()" style="padding:8px 16px; font-size:0.8rem;"><i data-lucide="plus" style="width:14px; margin-right:4px;"></i> Add Rule</button></div><table class="modern-table" style="width:100%;"><thead><tr><th>Name</th><th>Type</th><th>Trigger KM</th><th>Trigger Days</th><th>Trigger Hrs</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead><tbody>${items.map(r => `<tr><td>${r.name}</td><td>${r.type_name || r.type_id}</td><td>${r.trigger_km != null ? r.trigger_km.toLocaleString() + ' km' : '—'}</td><td>${r.trigger_days != null ? r.trigger_days + ' days' : '—'}</td><td>${r.trigger_hours != null ? r.trigger_hours + ' hrs' : '—'}</td><td><span class="stats-badge ${r.priority === 'critical' ? 'danger' : r.priority === 'high' ? 'warning' : r.priority === 'medium' ? 'warning' : 'primary'}">${r.priority}</span></td><td><span class="stats-badge ${r.is_active ? 'success' : 'warning'}">${r.is_active ? 'Active' : 'Inactive'}</span></td><td><div style="display:flex; gap:4px;"><button class="glass-btn secondary" onclick="editRule(${r.id})" style="padding:4px 8px; font-size:0.7rem;">Edit</button><button class="glass-btn danger" onclick="deleteRule(${r.id})" style="padding:4px 8px; font-size:0.7rem;">Del</button></div></td></tr>`).join('')}</tbody></table>`;
+}
+
+let _tmplState = { search: '', category: '', status: 'all', page: 1, sortField: 'name', sortOrder: 'asc' };
+
+async function renderTemplatesTable(templatesData) {
+    if (!templatesData) {
+        const params = new URLSearchParams({
+            page: _tmplState.page, page_size: 20,
+            search: _tmplState.search, category: _tmplState.category,
+            status: _tmplState.status
+        });
+        const resp = await fetch(`/api/maintenance/planner/templates?${params}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        templatesData = resp.ok ? await resp.json() : { items: [], total: 0, categories: [] };
+    }
+    const items = templatesData.items || [];
+    const categories = templatesData.categories || [];
+    let html = '';
+    // Top bar
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="tmpl-search" placeholder="Search templates..." value="${_tmplState.search}" oninput="debouncedTmplSearch()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.82rem;width:180px;">
+            <select id="tmpl-category-filter" onchange="switchTmplFilter()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.82rem;">
+                <option value="">All Categories</option>
+                ${categories.map(c => `<option value="${c}" ${_tmplState.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+            <select id="tmpl-status-filter" onchange="switchTmplFilter()" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.82rem;">
+                <option value="all" ${_tmplState.status === 'all' ? 'selected' : ''}>All</option>
+                <option value="active" ${_tmplState.status === 'active' ? 'selected' : ''}>Active</option>
+                <option value="inactive" ${_tmplState.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                <option value="archived" ${_tmplState.status === 'archived' ? 'selected' : ''}>Archived</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:0.85rem;color:var(--text-dim);">${templatesData.total} templates</span>
+            <button class="glass-btn primary" onclick="openTemplateModal()" style="padding:8px 16px;font-size:0.8rem;"><i data-lucide="plus" style="width:14px;margin-right:4px;"></i> New Template</button>
+            <button class="glass-btn secondary" onclick="seedDefaultTemplates()" style="padding:8px 12px;font-size:0.7rem;" title="Seed defaults if empty"><i data-lucide="database" style="width:12px;"></i></button>
+        </div>
+    </div>`;
+
+    if (!items.length) {
+        html += '<div class="premium-card" style="padding:40px;text-align:center;color:var(--text-dim);">No templates found. Click <strong>New Template</strong> to create one or seed defaults.</div>';
+        return html;
+    }
+
+    html += `<table class="modern-table" style="width:100%;"><thead><tr>
+        <th onclick="sortTmplTable('name')" style="cursor:pointer;">Template ${_tmplState.sortField === 'name' ? (_tmplState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th>Category</th>
+        <th onclick="sortTmplTable('rule_count')" style="cursor:pointer;">Rules ${_tmplState.sortField === 'rule_count' ? (_tmplState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th onclick="sortTmplTable('vehicle_count')" style="cursor:pointer;">Vehicles ${_tmplState.sortField === 'vehicle_count' ? (_tmplState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+    </tr></thead><tbody>`;
+    items.forEach(t => {
+        const statusBadge = t.is_archived ? '<span class="stats-badge warning">Archived</span>' :
+            t.is_active ? '<span class="stats-badge success">Active</span>' :
+            '<span class="stats-badge warning">Inactive</span>';
+        html += `<tr>
+            <td><strong style="cursor:pointer;color:var(--brand-primary);" onclick="viewTemplateRules(${t.id})">${t.name}</strong>
+                ${t.is_system ? '<span style="font-size:0.65rem;color:var(--text-dim);margin-left:4px;">(system)</span>' : ''}
+                ${t.description ? `<div style="font-size:0.7rem;color:var(--text-dim);">${t.description.substring(0, 50)}${t.description.length > 50 ? '...' : ''}</div>` : ''}
+            </td>
+            <td>${t.vehicle_category || t.vehicle_type || '—'}</td>
+            <td>${t.rule_count || 0}</td>
+            <td>${t.vehicle_count || 0}</td>
+            <td>${statusBadge}</td>
+            <td style="font-size:0.75rem;color:var(--text-dim);">${t.created_at ? t.created_at.split('T')[0] : '—'}</td>
+            <td><div style="display:flex;gap:4px;">
+                <button class="glass-btn secondary" onclick="viewTemplateRules(${t.id})" style="padding:4px 8px;font-size:0.7rem;">View</button>
+                <button class="glass-btn secondary" onclick="editTemplate(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Edit</button>
+                ${!t.is_archived && t.is_active ? `<button class="glass-btn secondary" onclick="deactivateTemplateAction(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Deact</button>` : ''}
+                ${!t.is_active && !t.is_archived ? `<button class="glass-btn secondary" onclick="activateTemplateAction(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Activate</button>` : ''}
+                ${t.is_archived ? `<button class="glass-btn secondary" onclick="activateTemplateAction(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Restore</button>` : ''}
+                ${!t.is_system ? `<button class="glass-btn secondary" onclick="duplicateTemplateAction(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Dup</button>` : ''}
+                ${!t.is_system ? `<button class="glass-btn danger" onclick="deleteTemplate(${t.id})" style="padding:4px 8px;font-size:0.7rem;">Del</button>` : ''}
+            </div></td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+
+    if (templatesData.total_pages > 1) {
+        html += `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">
+            ${Array.from({length: templatesData.total_pages}, (_, i) => i + 1).map(p =>
+                `<button class="glass-btn ${p === _tmplState.page ? 'primary' : ''}" onclick="gotoTmplPage(${p})" style="padding:6px 14px;font-size:0.8rem;">${p}</button>`
+            ).join('')}
+        </div>`;
+    }
+    return html;
+}
+
+function switchTmplFilter() {
+    _tmplState.category = document.getElementById('tmpl-category-filter')?.value || '';
+    _tmplState.status = document.getElementById('tmpl-status-filter')?.value || 'all';
+    _tmplState.page = 1;
+    switchPlannerTab('templates');
+}
+
+let _tmplDebounceTimer = null;
+function debouncedTmplSearch() {
+    clearTimeout(_tmplDebounceTimer);
+    _tmplDebounceTimer = setTimeout(() => {
+        _tmplState.search = document.getElementById('tmpl-search')?.value || '';
+        _tmplState.page = 1;
+        switchPlannerTab('templates');
+    }, 400);
+}
+
+function sortTmplTable(field) {
+    if (_tmplState.sortField === field) _tmplState.sortOrder = _tmplState.sortOrder === 'asc' ? 'desc' : 'asc';
+    else { _tmplState.sortField = field; _tmplState.sortOrder = 'asc'; }
+    switchPlannerTab('templates');
+}
+
+function gotoTmplPage(p) { _tmplState.page = p; switchPlannerTab('templates'); }
+
+async function seedDefaultTemplates() {
+    try {
+        const resp = await fetch('/api/maintenance/planner/templates/seed', { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = resp.ok ? await resp.json() : { seeded: 0 };
+        if (data.seeded > 0) {
+            await switchPlannerTab('templates');
+            await refreshMaintDashboardCache();
+            showNotification(`${data.seeded} default templates created`, 'scheduled');
+        } else showNotification('Templates already exist', 'scheduled');
+    } catch(e) { showNotification('Error seeding templates', 'fault'); }
+}
+
+// ==================== TEMPLATE BUILDER MODAL ====================
+
+let _templateEditId = null;
+let _templateRules = [];
+
+async function openTemplateModal(editId) {
+    _templateEditId = editId || null;
+    _templateRules = [];
+    let templateData = null;
+    if (editId) {
+        try {
+            const resp = await fetch(`/api/maintenance/planner/templates/${editId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (resp.ok) templateData = await resp.json();
+        } catch(e) {}
+    }
+    if (templateData) _templateRules = (templateData.rules || []).map(r => ({ ...r, uid: Date.now() + Math.random() }));
+
+    const [rulesResp, typesResp] = await Promise.all([
+        fetch('/api/maintenance/planner/rules?page_size=200&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch('/api/maintenance/planner/types?page_size=200', { headers: { 'Authorization': `Bearer ${authToken}` } })
+    ]);
+    const allRules = (rulesResp.ok ? await rulesResp.json() : { items: [] }).items || [];
+    const allTypes = (typesResp.ok ? await typesResp.json() : { items: [] }).items || [];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    modal.innerHTML = `<div class="premium-card" style="width:750px;max-width:94vw;max-height:92vh;overflow-y:auto;padding:28px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:1.15rem;font-weight:700;"><i data-lucide="layers" style="width:20px;vertical-align:middle;margin-right:8px;"></i> ${editId ? 'Edit' : 'Create'} Template</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.4rem;padding:4px;">&times;</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+            <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Template Name *</label>
+                <input type="text" id="tmpl-name" required value="${templateData ? templateData.name : ''}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+            <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Vehicle Category</label>
+                <select id="tmpl-category" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="">Select category...</option>
+                    ${['Car','Van','Pickup','Truck','Heavy Truck','Tanker','Bus','Motorcycle','Trailer','Generator','Heavy Equipment'].map(c =>
+                        `<option value="${c}" ${templateData && (templateData.vehicle_category === c || templateData.vehicle_type === c) ? 'selected' : ''}>${c}</option>`
+                    ).join('')}
+                </select>
+            </div>
+            <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Est. Service Cost</label>
+                <input type="number" id="tmpl-cost" value="${templateData && templateData.estimated_service_cost != null ? templateData.estimated_service_cost : ''}" step="100" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+            <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Est. Annual Maint.</label>
+                <input type="number" id="tmpl-annual" value="${templateData && templateData.estimated_annual_maint != null ? templateData.estimated_annual_maint : ''}" step="100" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+            <div style="grid-column:1/-1;"><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Description</label>
+                <textarea id="tmpl-description" rows="2" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;resize:vertical;">${templateData ? (templateData.description || '') : ''}</textarea>
+            </div>
+        </div>
+
+        <div style="border:1px solid var(--border-light);border-radius:10px;padding:16px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h4 style="font-size:0.9rem;font-weight:700;"><i data-lucide="list" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Maintenance Rules</h4>
+                <div style="display:flex;gap:6px;">
+                    <select id="tmpl-add-rule-select" style="padding:8px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.8rem;min-width:180px;">
+                        <option value="">Select a rule to add...</option>
+                        ${allRules.map(r => `<option value="${r.id}" data-type-name="${r.type_name || ''}">${r.name}${r.type_name ? ' (' + r.type_name + ')' : ''}</option>`).join('')}
+                    </select>
+                    <button type="button" class="glass-btn primary" onclick="addRuleToTemplateBuilder()" style="padding:8px 14px;font-size:0.8rem;">+ Add</button>
+                </div>
+            </div>
+            <div id="tmpl-rules-list">
+                ${_templateRules.length ? _templateRules.map((r, i) => renderTemplateRuleRow(r, i)).join('') :
+                    '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.85rem;">No rules added yet. Select a rule above and click Add.</div>'}
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button type="button" onclick="this.closest('.modal-overlay').remove()" style="padding:12px 24px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-secondary);cursor:pointer;font-weight:600;font-size:0.85rem;">Cancel</button>
+            <button type="button" id="tmpl-save-btn" class="glass-btn primary" onclick="saveTemplate()" style="padding:12px 24px;font-size:0.85rem;"><i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+}
+
+function renderTemplateRuleRow(r, idx) {
+    const ruleData = r.rule || r;
+    return `<div class="tmpl-rule-row" data-index="${idx}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border-light);border-radius:8px;margin-bottom:6px;background:var(--fleet-bg);">
+        <span style="color:var(--text-dim);font-size:0.75rem;min-width:24px;">#${idx + 1}</span>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.82rem;">${ruleData.name || 'Rule #' + r.rule_id}</div>
+            <div style="font-size:0.72rem;color:var(--text-dim);">
+                ${ruleData.trigger_km ? ruleData.trigger_km.toLocaleString() + ' km' : ''}
+                ${ruleData.trigger_km && ruleData.trigger_days ? ' | ' : ''}
+                ${ruleData.trigger_days ? ruleData.trigger_days + ' days' : ''}
+                ${(ruleData.trigger_km || ruleData.trigger_days) && ruleData.trigger_hours ? ' | ' : ''}
+                ${ruleData.trigger_hours ? ruleData.trigger_hours + ' hrs' : ''}
+                ${ruleData.type_name ? ' · ' + ruleData.type_name : ''}
+            </div>
+        </div>
+        <input type="number" class="tmpl-override-km" placeholder="Override KM" value="${r.override_km != null ? r.override_km : ''}" step="100" style="width:100px;padding:6px;border-radius:6px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.75rem;">
+        <input type="number" class="tmpl-override-days" placeholder="Override Days" value="${r.override_days != null ? r.override_days : ''}" style="width:80px;padding:6px;border-radius:6px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.75rem;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:0.7rem;white-space:nowrap;"><input type="checkbox" class="tmpl-rule-enabled" ${r.is_enabled !== false ? 'checked' : ''}> Active</label>
+        <button type="button" onclick="moveRuleInBuilder(${idx}, -1)" class="glass-btn secondary" style="padding:4px 6px;font-size:0.65rem;" title="Move Up">▲</button>
+        <button type="button" onclick="moveRuleInBuilder(${idx}, 1)" class="glass-btn secondary" style="padding:4px 6px;font-size:0.65rem;" title="Move Down">▼</button>
+        <button type="button" onclick="removeRuleFromBuilder(${idx})" class="glass-btn danger" style="padding:4px 8px;font-size:0.7rem;">✕</button>
+        <input type="hidden" class="tmpl-rule-id" value="${r.rule_id || r.rule?.id}">
+        <input type="hidden" class="tmpl-type-id" value="${ruleData.type_id || r.type_id || ''}">
+    </div>`;
+}
+
+function addRuleToTemplateBuilder() {
+    const sel = document.getElementById('tmpl-add-rule-select');
+    if (!sel || !sel.value) { showNotification('Select a rule first', 'fault'); return; }
+    const ruleId = parseInt(sel.value);
+    const option = sel.options[sel.selectedIndex];
+    if (_templateRules.some(r => (r.rule_id || r.rule?.id) === ruleId)) { showNotification('Rule already added', 'fault'); return; }
+    // Fetch full rule data from the select option attributes
+    const ruleName = option.text.split(' (')[0];
+    _templateRules.push({ uid: Date.now() + Math.random(), rule_id: ruleId, rule: { id: ruleId, name: ruleName }, is_enabled: true, override_km: null, override_days: null, override_hours: null });
+    renderTemplateRulesList();
+    sel.value = '';
+}
+
+function moveRuleInBuilder(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= _templateRules.length) return;
+    [_templateRules[idx], _templateRules[newIdx]] = [_templateRules[newIdx], _templateRules[idx]];
+    renderTemplateRulesList();
+}
+
+function removeRuleFromBuilder(idx) {
+    _templateRules.splice(idx, 1);
+    renderTemplateRulesList();
+}
+
+function renderTemplateRulesList() {
+    const container = document.getElementById('tmpl-rules-list');
+    if (!container) return;
+    if (!_templateRules.length) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.85rem;">No rules added yet.</div>';
+        return;
+    }
+    container.innerHTML = _templateRules.map((r, i) => renderTemplateRuleRow(r, i)).join('');
+    lucide.createIcons({ el: container });
+}
+
+async function saveTemplate() {
+    const btn = document.getElementById('tmpl-save-btn');
+    btn.disabled = true; btn.innerHTML = 'Saving...';
+
+    // Read override values from DOM
+    const rows = document.querySelectorAll('.tmpl-rule-row');
+    rows.forEach((row, idx) => {
+        if (_templateRules[idx]) {
+            _templateRules[idx].override_km = parseFloat(row.querySelector('.tmpl-override-km')?.value) || null;
+            _templateRules[idx].override_days = parseInt(row.querySelector('.tmpl-override-days')?.value) || null;
+            _templateRules[idx].is_enabled = row.querySelector('.tmpl-rule-enabled')?.checked ?? true;
+        }
+    });
+
+    const payload = {
+        name: document.getElementById('tmpl-name').value.trim(),
+        vehicle_category: document.getElementById('tmpl-category').value || null,
+        description: document.getElementById('tmpl-description').value.trim() || null,
+        estimated_service_cost: parseFloat(document.getElementById('tmpl-cost').value) || null,
+        estimated_annual_maint: parseFloat(document.getElementById('tmpl-annual').value) || null,
+        is_active: true
+    };
+    if (!payload.name) { showNotification('Template name is required', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template'; lucide.createIcons(); return; }
+    if (!_templateRules.length) { showNotification('Add at least one rule', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template'; lucide.createIcons(); return; }
+
+    try {
+        let templateId = _templateEditId;
+        if (templateId) {
+            const resp = await fetch(`/api/maintenance/planner/templates/${templateId}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) { const e = await resp.json(); showNotification(e.detail || 'Failed to update', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template'; lucide.createIcons(); return; }
+        } else {
+            const resp = await fetch('/api/maintenance/planner/templates', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) { const e = await resp.json(); showNotification(e.detail || 'Failed to create', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template'; lucide.createIcons(); return; }
+            const result = await resp.json();
+            templateId = result.id;
+        }
+
+        // Sync rules: remove old, add new
+        if (_templateEditId) {
+            const oldResp = await fetch(`/api/maintenance/planner/templates/${_templateEditId}/rules`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (oldResp.ok) {
+                const oldRules = await oldResp.json();
+                for (const or of oldRules) {
+                    await fetch(`/api/maintenance/planner/templates/${_templateEditId}/rules/${or.rule_id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+                }
+            }
+        }
+
+        for (let i = 0; i < _templateRules.length; i++) {
+            const r = _templateRules[i];
+            const ruleId = r.rule_id || r.rule?.id;
+            if (!ruleId) continue;
+            await fetch(`/api/maintenance/planner/templates/${templateId}/rules`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({
+                    rule_id: ruleId, execution_order: i,
+                    override_km: r.override_km, override_days: r.override_days,
+                    override_hours: r.override_hours, override_priority: r.override_priority,
+                    is_enabled: r.is_enabled !== false
+                })
+            });
+        }
+
+        document.querySelector('.modal-overlay.active')?.remove();
+        await switchPlannerTab('templates');
+        await refreshMaintDashboardCache();
+        showNotification(`Template ${_templateEditId ? 'updated' : 'created'} with ${_templateRules.length} rules`, 'scheduled');
+    } catch(e) { showNotification('Error saving template', 'fault'); btn.disabled = false; btn.innerHTML = '<i data-lucide="save" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Save Template'; lucide.createIcons(); }
+}
+
+async function editTemplate(id) { await openTemplateModal(id); }
+
+// ==================== TEMPLATE DETAIL / PREVIEW ====================
+
+async function viewTemplateRules(templateId) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/templates/${templateId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!resp.ok) { showNotification('Failed to load template', 'fault'); return; }
+        const t = await resp.json();
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+        modal.innerHTML = `<div class="premium-card" style="width:780px;max-width:94vw;max-height:92vh;overflow-y:auto;padding:28px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <div>
+                    <h3 style="font-size:1.2rem;font-weight:700;"><i data-lucide="layers" style="width:20px;vertical-align:middle;margin-right:8px;"></i> ${t.name}</h3>
+                    ${t.description ? `<p style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;">${t.description}</p>` : ''}
+                </div>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.4rem;padding:4px;">&times;</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+                <div class="premium-card mini-stat"><span class="card-label">Category</span><span class="card-value" style="font-size:0.85rem;">${t.vehicle_category || t.vehicle_type || '—'}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Rules</span><span class="card-value">${(t.rules || []).length}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Vehicles</span><span class="card-value">${t.vehicle_count || 0}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Status</span><span class="card-value" style="font-size:0.85rem;">${t.is_active ? 'Active' : t.is_archived ? 'Archived' : 'Inactive'}</span></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                <button class="glass-btn secondary" onclick="editTemplate(${t.id})" style="padding:6px 14px;font-size:0.8rem;"><i data-lucide="edit" style="width:14px;margin-right:4px;"></i> Edit</button>
+                ${!t.is_system ? `<button class="glass-btn secondary" onclick="duplicateTemplateAction(${t.id})" style="padding:6px 14px;font-size:0.8rem;"><i data-lucide="copy" style="width:14px;margin-right:4px;"></i> Duplicate</button>` : ''}
+                ${t.is_active ? `<button class="glass-btn warning" onclick="deactivateTemplateAction(${t.id})" style="padding:6px 14px;font-size:0.8rem;"><i data-lucide="pause-circle" style="width:14px;margin-right:4px;"></i> Deactivate</button>` :
+                    `<button class="glass-btn secondary" onclick="activateTemplateAction(${t.id})" style="padding:6px 14px;font-size:0.8rem;"><i data-lucide="play" style="width:14px;margin-right:4px;"></i> Activate</button>`}
+            </div>`;
+
+        const rules = t.rules || [];
+        if (rules.length) {
+            modal.innerHTML += `<h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;">Assigned Rules (${rules.length})</h4>
+            <table class="modern-table" style="width:100%;"><thead><tr>
+                <th>#</th><th>Rule</th><th>Type</th><th>Trigger KM</th><th>Trigger Days</th><th>Trigger Hrs</th><th>Priority</th><th>Status</th>
+            </tr></thead><tbody>${rules.map((r, i) => {
+                const rd = r.rule || {};
+                return `<tr>
+                    <td>${i + 1}</td>
+                    <td>${rd.name || 'Rule #' + r.rule_id}</td>
+                    <td>${rd.type_name || '—'}</td>
+                    <td>${r.override_km != null ? r.override_km.toLocaleString() : rd.trigger_km != null ? rd.trigger_km.toLocaleString() : '—'}</td>
+                    <td>${r.override_days != null ? r.override_days : rd.trigger_days != null ? rd.trigger_days : '—'}</td>
+                    <td>${r.override_hours != null ? r.override_hours : rd.trigger_hours != null ? rd.trigger_hours : '—'}</td>
+                    <td><span class="stats-badge ${r.override_priority === 'critical' ? 'danger' : r.override_priority === 'high' ? 'warning' : 'primary'}">${r.override_priority || rd.priority || 'medium'}</span></td>
+                    <td><span class="stats-badge ${r.is_enabled !== false ? 'success' : 'warning'}">${r.is_enabled !== false ? 'Enabled' : 'Disabled'}</span></td>
+                </tr>`;
+            }).join('')}</tbody></table>`;
+        } else {
+            modal.innerHTML += '<div class="premium-card" style="padding:20px;text-align:center;color:var(--text-dim);">No rules assigned to this template.</div>';
+        }
+
+        if (t.vehicles && t.vehicles.length) {
+            modal.innerHTML += `<h4 style="font-size:0.9rem;font-weight:700;margin:16px 0 12px;">Vehicles Using This Template (${t.vehicles.length})</h4>
+            <table class="modern-table" style="width:100%;"><thead><tr><th>Plan Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>
+                ${t.vehicles.map(v => `<tr><td>${v.name || 'Plan #' + v.id}</td><td>${v.device_id}</td><td><span class="stats-badge ${v.is_active ? 'success' : 'warning'}">${v.is_active ? 'Active' : 'Inactive'}</span></td></tr>`).join('')}
+            </tbody></table>`;
+        }
+
+        modal.innerHTML += `</div>`;
+        document.body.appendChild(modal);
+        lucide.createIcons({ el: modal });
+    } catch(e) { showNotification('Error loading template', 'fault'); }
+}
+
+// ==================== TEMPLATE ACTIONS ====================
+
+async function deleteTemplate(id) {
+    if (!confirm('Delete this template permanently?')) return;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/templates/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) { await switchPlannerTab('templates'); await refreshMaintDashboardCache(); showNotification('Template deleted', 'scheduled'); }
+        else { const e = await resp.json(); showNotification(e.detail || 'Failed to delete', 'fault'); }
+    } catch(e) { showNotification('Error deleting template', 'fault'); }
+}
+
+async function duplicateTemplateAction(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/templates/${id}/duplicate`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) { await switchPlannerTab('templates'); showNotification('Template duplicated', 'scheduled'); }
+        else { const e = await resp.json(); showNotification(e.detail || 'Failed to duplicate', 'fault'); }
+    } catch(e) { showNotification('Error duplicating template', 'fault'); }
+}
+
+async function activateTemplateAction(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/templates/${id}/activate`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) { await switchPlannerTab('templates'); showNotification('Template activated', 'scheduled'); }
+        else { const e = await resp.json(); showNotification(e.detail || 'Failed', 'fault'); }
+    } catch(e) { showNotification('Error', 'fault'); }
+}
+
+async function deactivateTemplateAction(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/templates/${id}/deactivate`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) { await switchPlannerTab('templates'); showNotification('Template deactivated', 'scheduled'); }
+        else { const e = await resp.json(); showNotification(e.detail || 'Failed', 'fault'); }
+    } catch(e) { showNotification('Error', 'fault'); }
+}
+
+let _planSearchState = { search: '', status: 'all', health: 'all', category: 'all', page: 1, sortField: 'name', sortOrder: 'asc', selectedPlanId: null };
+
+async function renderPlansTable() {
+    const container = document.getElementById('planner-tab-content');
+    if (container) container.innerHTML = '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Loading vehicles...</div>';
+
+    const params = new URLSearchParams({
+        page: _planSearchState.page, page_size: 50,
+        search: _planSearchState.search || '',
+        status: _planSearchState.status,
+        health: _planSearchState.health,
+        category: _planSearchState.category
+    });
+    const resp = await fetch(`/api/maintenance/planner/vehicles-plans?${params}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!resp.ok) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load vehicle plans.</div>';
+    const data = await resp.json();
+    const items = data.items || [];
+    const categories = data.categories || [];
+
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="plan-search-input" placeholder="Search vehicle..." value="${_planSearchState.search}" oninput="debouncedPlanSearch()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.82rem; width:200px;">
+            <select id="plan-status-filter" onchange="switchPlanFilter()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.82rem;">
+                <option value="all" ${_planSearchState.status === 'all' ? 'selected' : ''}>All Plans</option>
+                <option value="active" ${_planSearchState.status === 'active' ? 'selected' : ''}>Active</option>
+                <option value="inactive" ${_planSearchState.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                <option value="no plan" ${_planSearchState.status === 'no plan' ? 'selected' : ''}>No Plan</option>
+            </select>
+            <select id="plan-health-filter" onchange="switchPlanFilter()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.82rem;">
+                <option value="all" ${_planSearchState.health === 'all' ? 'selected' : ''}>All Health</option>
+                <option value="healthy" ${_planSearchState.health === 'healthy' ? 'selected' : ''}>Healthy</option>
+                <option value="due_soon" ${_planSearchState.health === 'due_soon' ? 'selected' : ''}>Due Soon</option>
+                <option value="overdue" ${_planSearchState.health === 'overdue' ? 'selected' : ''}>Overdue</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span id="bulk-select-count" style="font-size:0.82rem;color:var(--text-dim);"></span>
+            <button id="bulk-assign-btn" class="glass-btn primary" onclick="openBulkAssignModal()" style="padding:8px 16px;font-size:0.8rem;display:none;"><i data-lucide="layers" style="width:14px;margin-right:4px;"></i> Bulk Assign</button>
+            <span style="font-size:0.85rem; color:var(--text-dim);">${data.total} vehicles</span>
+        </div>
+    </div>`;
+
+    if (!items.length) {
+        html += '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No vehicles found matching your criteria.</div>';
+        return html;
+    }
+
+    html += `<table class="modern-table" style="width:100%;"><thead><tr>
+        <th style="width:36px;"><input type="checkbox" onchange="toggleSelectAll()" style="cursor:pointer;"></th>
+        <th onclick="sortPlanTable('name')" style="cursor:pointer;">Vehicle ${_planSearchState.sortField === 'name' ? (_planSearchState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th>Device ID</th>
+        <th onclick="sortPlanTable('category')" style="cursor:pointer;">Category ${_planSearchState.sortField === 'category' ? (_planSearchState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th>Odometer</th>
+        <th>Template</th>
+        <th>Plan Status</th>
+        <th onclick="sortPlanTable('health_status')" style="cursor:pointer;">Health ${_planSearchState.sortField === 'health_status' ? (_planSearchState.sortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+        <th>Next Service</th>
+        <th>Actions</th>
+    </tr></thead><tbody>`;
+
+    items.forEach(v => {
+        const healthColor = v.health_status === 'overdue' ? '#ef4444' : v.health_status === 'due_soon' ? '#f59e0b' : '#10b981';
+        const odometerDisplay = v.current_km != null ? v.current_km.toLocaleString() + ' km' : '<span style="color:var(--text-dim);">No Data</span>';
+        const nextDisplay = v.next_service_km != null ? v.next_service_km.toLocaleString() + ' km' : v.next_service_days != null ? v.next_service_days + ' days' : '<span style="color:var(--text-dim);">—</span>';
+        const planBadge = v.plan_status === 'Active' ? '<span class="stats-badge success">Active</span>' : v.plan_status === 'Inactive' ? '<span class="stats-badge warning">Inactive</span>' : '<span class="stats-badge primary">No Plan</span>';
+        const actions = v.plan_id ? `
+            <button class="glass-btn secondary" onclick="openVehicleDetail(${v.id})" style="padding:4px 8px; font-size:0.7rem;">Detail</button>
+            <button class="glass-btn secondary" onclick="viewPlanOverrides(${v.plan_id})" style="padding:4px 8px; font-size:0.7rem;">Overrides</button>
+            ${v.template_name ? `<button class="glass-btn secondary" onclick="openPlanModal(${v.id})" style="padding:4px 8px; font-size:0.7rem;">Replace</button>` : ''}
+            ${v.template_name ? `<button class="glass-btn danger" onclick="unassignTemplate(${v.plan_id})" style="padding:4px 8px; font-size:0.7rem;">Unassign</button>` : ''}
+            ${v.plan_is_active ? `<button class="glass-btn danger" onclick="deletePlan(${v.plan_id})" style="padding:4px 8px; font-size:0.7rem;">Del</button>` : ''}
+        ` : `<button class="glass-btn primary" onclick="openPlanModal(${v.id})" style="padding:4px 8px; font-size:0.7rem;">Assign</button>`;
+
+        html += `<tr>
+            <td><input type="checkbox" class="plan-bulk-check" data-device-id="${v.id}" onchange="toggleBulkSelect(${v.id})" style="cursor:pointer;"></td>
+            <td><strong style="cursor:pointer;color:var(--brand-primary);" onclick="openVehicleDetail(${v.id})">${v.name || 'Unknown'}</strong></td>
+            <td style="font-size:0.75rem;color:var(--text-dim);">${v.uniqueId || v.id}</td>
+            <td>${v.category || '—'}</td>
+            <td>${odometerDisplay}</td>
+            <td>${v.template_name || '<span style="color:var(--text-dim);">Not Assigned</span>'}</td>
+            <td>${planBadge}</td>
+            <td><span style="color:${healthColor};font-weight:600;">${v.health_status === 'overdue' ? 'Overdue' : v.health_status === 'due_soon' ? 'Due Soon' : 'Healthy'}</span></td>
+            <td>${nextDisplay}</td>
+            <td><div style="display:flex;gap:4px;">${actions}</div></td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+
+    if (data.total_pages > 1) {
+        html += `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">
+            ${Array.from({length: data.total_pages}, (_, i) => i + 1).map(p =>
+                `<button class="glass-btn ${p === _planSearchState.page ? 'primary' : ''}" onclick="gotoPlanPage(${p})" style="padding:6px 14px;font-size:0.8rem;">${p}</button>`
+            ).join('')}
+        </div>`;
+    }
+    return html;
+}
+
+function switchPlanFilter() {
+    _planSearchState.status = document.getElementById('plan-status-filter')?.value || 'all';
+    _planSearchState.health = document.getElementById('plan-health-filter')?.value || 'all';
+    _planSearchState.page = 1;
+    switchPlannerTab('plans');
+}
+
+let _planDebounceTimer = null;
+function debouncedPlanSearch() {
+    clearTimeout(_planDebounceTimer);
+    _planDebounceTimer = setTimeout(() => {
+        _planSearchState.search = document.getElementById('plan-search-input')?.value || '';
+        _planSearchState.page = 1;
+        switchPlannerTab('plans');
+    }, 400);
+}
+
+function sortPlanTable(field) {
+    if (_planSearchState.sortField === field) {
+        _planSearchState.sortOrder = _planSearchState.sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        _planSearchState.sortField = field;
+        _planSearchState.sortOrder = 'asc';
+    }
+    switchPlannerTab('plans');
+}
+
+function gotoPlanPage(p) {
+    _planSearchState.page = p;
+    switchPlannerTab('plans');
+}
+
+// ==================== VEHICLE DETAIL MODAL ====================
+
+async function openVehicleDetail(deviceId) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `<div class="premium-card" style="width:720px; max-width:92vw; max-height:90vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:1.2rem;font-weight:700;"><i data-lucide="truck" style="width:20px;vertical-align:middle;margin-right:8px;"></i> Loading...</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.4rem;padding:4px;">&times;</button>
+        </div>
+        <div id="vehicle-detail-content" style="text-align:center;padding:20px;color:var(--text-dim);">Loading vehicle data...</div>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+
+    try {
+        const [vpResp, calcResp] = await Promise.all([
+            fetch(`/api/maintenance/planner/vehicles-plans?page_size=1&search=${deviceId}`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch(`/api/maintenance/planner/due-calculation/${deviceId}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        const vpData = vpResp.ok ? await vpResp.json() : { items: [] };
+        const vehicle = (vpData.items || []).find(v => v.id === deviceId);
+        const calc = calcResp.ok ? await calcResp.json() : { items: [], current_km: 0, summary: {} };
+
+        let logResp, lastLogs = [];
+        try {
+            logResp = await fetch(`/api/maintenance/log?device_id=${deviceId}&page_size=5`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (logResp.ok) { const ld = await logResp.json(); lastLogs = ld.items || ld; }
+        } catch(e) {}
+
+        const summary = calc.summary || {};
+        let content = '';
+        if (vehicle) {
+            const odometer = vehicle.current_km != null ? vehicle.current_km.toLocaleString() + ' km' : 'No Odometer Data';
+            const healthColor = vehicle.health_status === 'overdue' ? '#ef4444' : vehicle.health_status === 'due_soon' ? '#f59e0b' : '#10b981';
+            content = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                <div class="premium-card" style="padding:16px;">
+                    <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;"><i data-lucide="info" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Vehicle Info</h4>
+                    <div style="font-size:0.82rem;display:grid;gap:6px;">
+                        <div><strong>Name:</strong> ${vehicle.name}</div>
+                        <div><strong>Device ID:</strong> ${vehicle.uniqueId || vehicle.id}</div>
+                        <div><strong>Category:</strong> ${vehicle.category || '—'}</div>
+                        <div><strong>Model:</strong> ${vehicle.model || '—'}</div>
+                        <div><strong>Phone:</strong> ${vehicle.phone || '—'}</div>
+                        <div><strong>Status:</strong> <span class="stats-badge ${vehicle.status === 'online' ? 'success' : 'warning'}">${vehicle.status || 'offline'}</span></div>
+                    </div>
+                </div>
+                <div class="premium-card" style="padding:16px;">
+                    <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;"><i data-lucide="activity" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Plan Status</h4>
+                    <div style="font-size:0.82rem;display:grid;gap:6px;">
+                        <div><strong>Plan:</strong> ${vehicle.plan_name || 'No Plan'}</div>
+                        <div><strong>Template:</strong> ${vehicle.template_name || 'Not Assigned'}</div>
+                        ${vehicle.plan_created_at ? '<div><strong>Assigned:</strong> ' + vehicle.plan_created_at.split('T')[0] + '</div>' : ''}
+                        ${vehicle.template_updated_at ? '<div><strong>Template Version:</strong> ' + vehicle.template_updated_at.split('T')[0] + '</div>' : ''}
+                        <div><strong>Status:</strong> ${vehicle.plan_status === 'Active' ? '<span class="stats-badge success">Active</span>' : '<span class="stats-badge warning">Inactive</span>'}</div>
+                        <div><strong>Health:</strong> <span style="color:${healthColor};font-weight:600;">${vehicle.health_status === 'overdue' ? 'Overdue' : vehicle.health_status === 'due_soon' ? 'Due Soon' : 'Healthy'}</span></div>
+                        <div><strong>Odometer:</strong> ${odometer}</div>
+                    </div>
+                    ${vehicle.plan_id ? '<div style="margin-top:12px;display:flex;gap:6px;">' +
+                        '<button class="glass-btn secondary" onclick="this.closest(\'.modal-overlay\').remove();openPlanModal(' + deviceId + ')" style="padding:6px 12px;font-size:0.75rem;">Replace</button>' +
+                        '<button class="glass-btn danger" onclick="this.closest(\'.modal-overlay\').remove();unassignTemplate(' + vehicle.plan_id + ')" style="padding:6px 12px;font-size:0.75rem;">Unassign</button>' +
+                    '</div>' : ''}
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+                <div class="premium-card mini-stat"><span class="card-label">Total Rules</span><span class="card-value">${summary.total || 0}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Healthy</span><span class="card-value" style="color:#10b981;">${summary.healthy || 0}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Due Soon</span><span class="card-value" style="color:#f59e0b;">${summary.due_soon || 0}</span></div>
+                <div class="premium-card mini-stat"><span class="card-label">Overdue</span><span class="card-value" style="color:#ef4444;">${summary.overdue || 0}</span></div>
+            </div>`;
+        } else {
+            content = `<div class="premium-card" style="padding:20px;text-align:center;color:var(--text-dim);">Vehicle data not available.</div>`;
+        }
+
+        if (calc.items && calc.items.length > 0) {
+            content += `<h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;"><i data-lucide="clipboard-list" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Assigned Rules</h4>
+            <table class="modern-table" style="width:100%;margin-bottom:20px;"><thead><tr>
+                <th>Type</th><th>Rule</th><th>Interval KM</th><th>Interval Days</th><th>KM Left</th><th>Days Left</th><th>Status</th>
+            </tr></thead><tbody>${calc.items.map(r => {
+                const st = r.overall_status;
+                const stColor = st === 'overdue' ? '#ef4444' : st === 'due_soon' ? '#f59e0b' : '#10b981';
+                return `<tr><td>${r.type_name || '—'}</td><td>${r.rule_name || '—'}</td>
+                    <td>${r.km_interval != null ? r.km_interval.toLocaleString() : '—'}</td>
+                    <td>${r.days_interval || '—'}</td>
+                    <td>${r.km_remaining != null ? r.km_remaining.toLocaleString() : '—'}</td>
+                    <td>${r.days_remaining != null ? r.days_remaining : '—'}</td>
+                    <td><span style="color:${stColor};font-weight:600;">${st}</span></td></tr>`;
+            }).join('')}</tbody></table>`;
+        }
+
+        if (lastLogs.length > 0) {
+            content += `<h4 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;"><i data-lucide="history" style="width:16px;vertical-align:middle;margin-right:6px;"></i> Last Services</h4>
+            <table class="modern-table" style="width:100%;"><thead><tr><th>Date</th><th>Type</th><th>KM</th><th>Workshop</th><th>Cost</th><th>Technician</th></tr></thead><tbody>
+            ${lastLogs.map(l => `<tr><td>${l.service_date ? l.service_date.split('T')[0] : '—'}</td>
+                <td>${l.service_type || '—'}</td>
+                <td>${l.service_value ? l.service_value.toLocaleString() : '—'}</td>
+                <td>${l.workshop_name || '—'}</td>
+                <td>${l.cost ? l.cost.toLocaleString() : '—'}</td>
+                <td>${l.technician || '—'}</td></tr>`).join('')}</tbody></table>`;
+        }
+
+        const detailContent = modal.querySelector('#vehicle-detail-content');
+        if (detailContent) {
+            detailContent.innerHTML = content;
+            lucide.createIcons({ el: detailContent });
+        }
+        const titleEl = modal.querySelector('h3');
+        if (titleEl) titleEl.innerHTML = `<i data-lucide="truck" style="width:20px;vertical-align:middle;margin-right:8px;"></i> ${vehicle ? vehicle.name : 'Vehicle Detail'}`;
+        lucide.createIcons({ el: modal });
+    } catch(e) {
+        const detailContent = modal.querySelector('#vehicle-detail-content');
+        if (detailContent) detailContent.innerHTML = '<div style="color:var(--text-dim);">Failed to load vehicle data.</div>';
+    }
+}
+
+// ==================== ASSIGN TEMPLATE MODAL ====================
+
+let _planEditVehicleId = null;
+
+async function openPlanModal(deviceId) {
+    _planEditVehicleId = deviceId || null;
+    const isEdit = !!_planEditVehicleId;
+
+    const [vehiclesResp, templatesResp, plansResp] = await Promise.all([
+        fetch('/api/v1/vehicles/live', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch('/api/maintenance/planner/templates?page_size=200&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch(`/api/maintenance/planner/plans?device_id=${deviceId || 0}&active_only=true`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+    ]);
+    const vehicles = vehiclesResp.ok ? await vehiclesResp.json() : [];
+    const tmplData = templatesResp.ok ? await templatesResp.json() : { items: [] };
+    const templates = tmplData.items || [];
+    const plansData = plansResp.ok ? await plansResp.json() : { items: [] };
+    const existingPlan = (plansData.items || []).find(p => p.device_id === deviceId && p.template_id);
+    const isReplace = !!existingPlan;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `<div class="premium-card" style="width:520px; max-width:90vw; padding:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:1.1rem;font-weight:700;">${isReplace ? 'Replace Template' : isEdit ? 'Assign Template' : 'Create Plan'}</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;padding:4px;">&times;</button>
+        </div>
+        ${isReplace ? '<div style="background:#f59e0b15;border:1px solid #f59e0b40;border-radius:8px;padding:12px;margin-bottom:16px;font-size:0.82rem;color:#f59e0b;">This vehicle already has template <strong>' + (existingPlan.template_name || '') + '</strong>. Selecting a new template will replace it.</div>' : ''}
+        <form id="plan-form" style="display:flex;flex-direction:column;gap:12px;">
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Vehicle</label>
+            <select id="plan-device-id" required style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">Select Vehicle...</option>
+                ${vehicles.map(v => `<option value="${v.id}" ${v.id === deviceId ? 'selected' : ''}>${v.name || 'Vehicle ' + v.id} (${v.uniqueId || v.id})</option>`).join('')}
+            </select>
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Template</label>
+            <select id="plan-template-id" required style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">Select Template...</option>
+                ${templates.map(t => `<option value="${t.id}" ${existingPlan && existingPlan.template_id === t.id ? 'selected' : ''}>${t.name} (${t.vehicle_category || t.vehicle_type || 'General'}) — ${t.rule_count || 0} rules</option>`).join('')}
+            </select>
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Plan Name</label>
+            <input type="text" id="plan-name" placeholder="e.g., Standard Maintenance Plan" required value="${isReplace ? existingPlan.name : ''}" style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Description (optional)</label>
+            <textarea id="plan-description" rows="2" style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;resize:vertical;"></textarea>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;"><input type="checkbox" id="plan-is-active" checked> Active</label>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1;padding:12px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-secondary);cursor:pointer;font-weight:600;font-size:0.85rem;">Cancel</button>
+                <button type="submit" style="flex:1;padding:12px;border-radius:8px;border:none;background:var(--brand-primary);color:#fff;cursor:pointer;font-weight:600;font-size:0.85rem;">${isReplace ? 'Replace Template' : isEdit ? 'Assign Template' : 'Create Plan'}</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+
+    const form = document.getElementById('plan-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        const payload = {
+            device_id: parseInt(document.getElementById('plan-device-id').value),
+            name: document.getElementById('plan-name').value.trim(),
+            description: document.getElementById('plan-description').value.trim() || null,
+            is_active: document.getElementById('plan-is-active').checked,
+            template_id: parseInt(document.getElementById('plan-template-id').value) || null
+        };
+        if (!payload.device_id) { showNotification('Select a vehicle', 'fault'); btn.disabled = false; btn.textContent = 'Save'; return; }
+        if (!payload.template_id) { showNotification('Select a template', 'fault'); btn.disabled = false; btn.textContent = 'Save'; return; }
+        try {
+            let resp;
+            const alreadyHas = existingPlan && existingPlan.template_id;
+            if (alreadyHas) {
+                resp = await fetch('/api/maintenance/planner/plans/replace-template', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ device_id: payload.device_id, template_id: payload.template_id })
+                });
+            } else if (payload.template_id) {
+                resp = await fetch('/api/maintenance/planner/plans/assign-template', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ device_id: payload.device_id, template_id: payload.template_id })
+                });
+            } else {
+                resp = await fetch('/api/maintenance/planner/plans', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(payload)
+                });
+            }
+            if (resp.ok) {
+                modal.remove();
+                await switchPlannerTab('plans');
+                await refreshMaintDashboardCache();
+                showNotification(alreadyHas ? 'Template replaced' : 'Template assigned', 'scheduled');
+            } else {
+                const err = await resp.json();
+                showNotification(err.detail || 'Failed to save plan', 'fault');
+                btn.disabled = false; btn.textContent = 'Save';
+            }
+        } catch(err) { showNotification('Error saving plan', 'fault'); btn.disabled = false; btn.textContent = 'Save'; }
+    };
+}
+
+let _bulkSelectedIds = [];
+
+function toggleBulkSelect(deviceId) {
+    const idx = _bulkSelectedIds.indexOf(deviceId);
+    if (idx >= 0) _bulkSelectedIds.splice(idx, 1);
+    else _bulkSelectedIds.push(deviceId);
+    const countEl = document.getElementById('bulk-select-count');
+    if (countEl) countEl.textContent = _bulkSelectedIds.length + ' selected';
+    const bulkBtn = document.getElementById('bulk-assign-btn');
+    if (bulkBtn) bulkBtn.style.display = _bulkSelectedIds.length > 0 ? '' : 'none';
+}
+
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.plan-bulk-check');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    _bulkSelectedIds = [];
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+        if (!allChecked) _bulkSelectedIds.push(parseInt(cb.dataset.deviceId));
+    });
+    const countEl = document.getElementById('bulk-select-count');
+    if (countEl) countEl.textContent = _bulkSelectedIds.length + ' selected';
+    const bulkBtn = document.getElementById('bulk-assign-btn');
+    if (bulkBtn) bulkBtn.style.display = _bulkSelectedIds.length > 0 ? '' : 'none';
+}
+
+async function openBulkAssignModal() {
+    if (!_bulkSelectedIds.length) { showNotification('Select vehicles first', 'fault'); return; }
+    const templatesResp = await fetch('/api/maintenance/planner/templates?page_size=200&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } });
+    const tmplData = templatesResp.ok ? await templatesResp.json() : { items: [] };
+    const templates = tmplData.items || [];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `<div class="premium-card" style="width:480px; max-width:90vw; padding:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:1.1rem;font-weight:700;">Bulk Assign Template</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;padding:4px;">&times;</button>
+        </div>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;">Assigning to ${_bulkSelectedIds.length} vehicle(s). Existing templates will be replaced.</p>
+        <form id="bulk-form" style="display:flex;flex-direction:column;gap:12px;">
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Select Template</label>
+            <select id="bulk-template-id" required style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">Select Template...</option>
+                ${templates.map(t => `<option value="${t.id}">${t.name} (${t.vehicle_category || t.vehicle_type || 'General'}) — ${t.rule_count || 0} rules</option>`).join('')}
+            </select>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1;padding:12px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-secondary);cursor:pointer;font-weight:600;font-size:0.85rem;">Cancel</button>
+                <button type="submit" style="flex:1;padding:12px;border-radius:8px;border:none;background:var(--brand-primary);color:#fff;cursor:pointer;font-weight:600;font-size:0.85rem;">Assign to All</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+
+    document.getElementById('bulk-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = modal.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Assigning...';
+        const templateId = parseInt(document.getElementById('bulk-template-id').value);
+        if (!templateId) { showNotification('Select a template', 'fault'); btn.disabled = false; btn.textContent = 'Assign to All'; return; }
+        try {
+            const resp = await fetch('/api/maintenance/planner/plans/bulk-assign', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ device_ids: _bulkSelectedIds, template_id: templateId })
+            });
+            if (resp.ok) {
+                const result = await resp.json();
+                modal.remove();
+                _bulkSelectedIds = [];
+                await switchPlannerTab('plans');
+                await refreshMaintDashboardCache();
+                showNotification(`Assigned to ${result.success.length} vehicle(s), ${result.failed.length} failed`, 'scheduled');
+            } else {
+                const err = await resp.json();
+                showNotification(err.detail || 'Bulk assign failed', 'fault');
+                btn.disabled = false; btn.textContent = 'Assign to All';
+            }
+        } catch(err) { showNotification('Error in bulk assign', 'fault'); btn.disabled = false; btn.textContent = 'Assign to All'; }
+    };
+}
+
+async function unassignTemplate(planId) {
+    if (!confirm('Remove template from this vehicle? Rule overrides will be disabled but history is preserved.')) return;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/plans/${planId}/unassign`, {
+            method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+            await switchPlannerTab('plans');
+            await refreshMaintDashboardCache();
+            showNotification('Template unassigned', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to unassign', 'fault');
+        }
+    } catch(err) { showNotification('Error unassigning template', 'fault'); }
+}
+
+// ==================== RULE OVERRIDES ====================
+
+let _overridePlanId = null;
+
+async function viewPlanOverrides(planId) {
+    _overridePlanId = planId;
+    _planSearchState.selectedPlanId = planId;
+    switchPlannerTab('overrides');
+}
+
+async function renderOverridesTable() {
+    if (!_overridePlanId) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Select a vehicle plan to view its rule overrides.</div>';
+    try {
+        const resp = await fetch(`/api/maintenance/planner/plans/${_overridePlanId}/overrides`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!resp.ok) return '<div class="premium-card" style="padding:40px;text-align:center;color:var(--text-dim);">Failed to load overrides.</div>';
+        const overrides = await resp.json();
+        if (!overrides.length) return `<div class="premium-card" style="padding:40px;text-align:center;color:var(--text-dim);">
+            No rule overrides for this plan. <button class="glass-btn primary" onclick="openRuleOverrideModal(${_overridePlanId})" style="margin-left:8px;padding:6px 14px;font-size:0.8rem;">Add Override</button>
+        </div>`;
+        let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <span style="font-size:0.85rem;color:var(--text-dim);">${overrides.length} overrides</span>
+            <button class="glass-btn primary" onclick="openRuleOverrideModal(${_overridePlanId})" style="padding:8px 16px;font-size:0.8rem;"><i data-lucide="plus" style="width:14px;margin-right:4px;"></i> Add Override</button>
+        </div>
+        <table class="modern-table" style="width:100%;"><thead><tr>
+            <th>Type</th><th>Rule</th><th>Override KM</th><th>Override Days</th><th>Override Hrs</th><th>Priority</th><th>Status</th><th>Reason</th><th>Actions</th>
+        </tr></thead><tbody>`;
+        overrides.forEach(o => {
+            html += `<tr>
+                <td>${o.type_name || '—'}</td>
+                <td>${o.rule_name || '—'}</td>
+                <td>${o.override_km != null ? o.override_km.toLocaleString() : '—'}</td>
+                <td>${o.override_days != null ? o.override_days : '—'}</td>
+                <td>${o.override_hours != null ? o.override_hours : '—'}</td>
+                <td><span class="stats-badge ${o.override_priority === 'critical' ? 'danger' : o.override_priority === 'high' ? 'warning' : 'primary'}">${o.override_priority || '—'}</span></td>
+                <td><span class="stats-badge ${o.is_enabled ? 'success' : 'warning'}">${o.is_enabled ? 'Enabled' : 'Disabled'}</span></td>
+                <td style="font-size:0.75rem;color:var(--text-dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;">${o.reason || '—'}</td>
+                <td><div style="display:flex;gap:4px;">
+                    <button class="glass-btn secondary" onclick="openRuleOverrideModal(${_overridePlanId}, ${o.id})" style="padding:4px 8px;font-size:0.7rem;">Edit</button>
+                    <button class="glass-btn danger" onclick="deletePlanOverride(${o.id})" style="padding:4px 8px;font-size:0.7rem;">Del</button>
+                </div></td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        return html;
+    } catch(e) {
+        return '<div class="premium-card" style="padding:40px;text-align:center;color:var(--text-dim);">Error loading overrides.</div>';
+    }
+}
+
+async function openRuleOverrideModal(planId, overrideId) {
+    let overrideData = null;
+    if (overrideId) {
+        try {
+            const resp = await fetch(`/api/maintenance/planner/plans/${planId}/overrides`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+            if (resp.ok) {
+                const overrides = await resp.json();
+                overrideData = overrides.find(o => o.id === overrideId);
+            }
+        } catch(e) {}
+    }
+
+    const [typesResp, rulesResp] = await Promise.all([
+        fetch('/api/maintenance/planner/types?page_size=200&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch('/api/maintenance/planner/rules?page_size=200&active_only=true', { headers: { 'Authorization': `Bearer ${authToken}` } })
+    ]);
+    const types = (typesResp.ok ? await typesResp.json() : { items: [] }).items || [];
+    const rules = (rulesResp.ok ? await rulesResp.json() : { items: [] }).items || [];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modal.innerHTML = `<div class="premium-card" style="width:520px;max-width:90vw;padding:32px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="font-size:1.1rem;font-weight:700;">${overrideId ? 'Edit' : 'Add'} Rule Override</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.3rem;padding:4px;">&times;</button>
+        </div>
+        <form id="override-form" style="display:flex;flex-direction:column;gap:12px;">
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Maintenance Type</label>
+            <select id="override-type-id" required style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">Select Type...</option>
+                ${types.map(t => `<option value="${t.id}" ${overrideData && overrideData.type_id === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+            </select>
+            <label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Rule</label>
+            <select id="override-rule-id" required style="padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">Select Rule...</option>
+                ${rules.map(r => `<option value="${r.id}" ${overrideData && overrideData.rule_id === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+            </select>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Override KM</label><input type="number" id="override-km" value="${overrideData && overrideData.override_km != null ? overrideData.override_km : ''}" step="100" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+                <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Override Days</label><input type="number" id="override-days" value="${overrideData && overrideData.override_days != null ? overrideData.override_days : ''}" step="1" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+                <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Override Hours</label><input type="number" id="override-hours" value="${overrideData && overrideData.override_hours != null ? overrideData.override_hours : ''}" step="0.5" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;"></div>
+                <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Priority</label>
+                    <select id="override-priority" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;">
+                        <option value="">Default</option>
+                        <option value="low" ${overrideData && overrideData.override_priority === 'low' ? 'selected' : ''}>Low</option>
+                        <option value="medium" ${overrideData && overrideData.override_priority === 'medium' ? 'selected' : ''}>Medium</option>
+                        <option value="high" ${overrideData && overrideData.override_priority === 'high' ? 'selected' : ''}>High</option>
+                        <option value="critical" ${overrideData && overrideData.override_priority === 'critical' ? 'selected' : ''}>Critical</option>
+                    </select>
+                </div>
+            </div>
+            <div><label style="font-size:0.75rem;font-weight:700;color:var(--text-dim);">Reason (optional)</label><textarea id="override-reason" rows="2" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border-light);background:var(--fleet-bg);color:var(--text-primary);font-size:0.85rem;resize:vertical;">${overrideData ? (overrideData.reason || '') : ''}</textarea></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;"><input type="checkbox" id="override-is-enabled" ${!overrideData || overrideData.is_enabled ? 'checked' : ''}> Enabled</label>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1;padding:12px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-secondary);cursor:pointer;font-weight:600;font-size:0.85rem;">Cancel</button>
+                <button type="submit" style="flex:1;padding:12px;border-radius:8px;border:none;background:var(--brand-primary);color:#fff;cursor:pointer;font-weight:600;font-size:0.85rem;">${overrideId ? 'Update' : 'Create'} Override</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    lucide.createIcons({ el: modal });
+
+    const form = document.getElementById('override-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        const payload = {
+            rule_id: parseInt(document.getElementById('override-rule-id').value),
+            type_id: parseInt(document.getElementById('override-type-id').value),
+            override_km: parseFloat(document.getElementById('override-km').value) || null,
+            override_days: parseInt(document.getElementById('override-days').value) || null,
+            override_hours: parseFloat(document.getElementById('override-hours').value) || null,
+            override_priority: document.getElementById('override-priority').value || null,
+            is_enabled: document.getElementById('override-is-enabled').checked,
+            reason: document.getElementById('override-reason').value.trim() || null
+        };
+        if (!payload.rule_id || !payload.type_id) { showNotification('Select type and rule', 'fault'); btn.disabled = false; btn.textContent = 'Save'; return; }
+        try {
+            let resp;
+            if (overrideId) {
+                resp = await fetch(`/api/maintenance/planner/overrides/${overrideId}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                resp = await fetch(`/api/maintenance/planner/plans/${planId}/overrides`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(payload)
+                });
+            }
+            if (resp.ok) {
+                modal.remove();
+                await viewPlanOverrides(planId);
+                showNotification(`Override ${overrideId ? 'updated' : 'created'}`, 'scheduled');
+            } else {
+                const err = await resp.json();
+                showNotification(err.detail || 'Failed to save override', 'fault');
+                btn.disabled = false; btn.textContent = 'Save';
+            }
+        } catch(err) { showNotification('Error saving override', 'fault'); btn.disabled = false; btn.textContent = 'Save'; }
+    };
+}
+
+async function deletePlanOverride(overrideId) {
+    if (!confirm('Delete this rule override permanently?')) return;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/overrides/${overrideId}`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+            await viewPlanOverrides(_overridePlanId);
+            showNotification('Override deleted', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to delete', 'fault');
+        }
+    } catch(err) { showNotification('Error deleting override', 'fault'); }
+}
+
+// ==================== DELETE PLAN ====================
+
+async function deletePlan(planId) {
+    if (!confirm('Delete this maintenance plan? This will remove all rule overrides.')) return;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/plans/${planId}`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+            await switchPlannerTab('plans');
+            await refreshMaintDashboardCache();
+            showNotification('Plan deleted', 'scheduled');
+        } else {
+            const err = await resp.json();
+            showNotification(err.detail || 'Failed to delete', 'fault');
+        }
+    } catch(err) { showNotification('Error deleting plan', 'fault'); }
+}
+
+async function renderHistoryTable() {
+    const resp = await fetch('/api/maintenance/planner/history?page_size=20', { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!resp.ok) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">Failed to load history.</div>';
+    const data = await resp.json();
+    const items = data.items || [];
+    if (!items.length) return '<div class="premium-card" style="padding:40px; text-align:center; color:var(--text-dim);">No history entries yet.</div>';
+    return `<table class="modern-table" style="width:100%;"><thead><tr><th>Date</th><th>Field</th><th>Old Value</th><th>New Value</th><th>Reason</th></tr></thead><tbody>${items.map(h => `<tr><td>${h.created_at ? h.created_at.split('T')[0] : '—'}</td><td>${h.field_name || '—'}</td><td>${h.old_value || '—'}</td><td>${h.new_value || '—'}</td><td>${h.reason || '—'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ==================== RULE MODAL ====================
+let ruleEditId = null;
+
+async function openRuleModal(editData) {
+    ruleEditId = editData ? editData.id : null;
+    const isEdit = !!ruleEditId;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center;';
+
+    const typesResp = await fetch('/api/maintenance/planner/types?page_size=200', { headers: { 'Authorization': `Bearer ${authToken}` } });
+    const typesData = typesResp.ok ? await typesResp.json() : { items: [] };
+    const typeOptions = typesData.items.map(t => `<option value="${t.id}" ${editData && editData.type_id === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
+
+    modal.innerHTML = `<div class="premium-card" style="width:560px; max-width:90vw; max-height:90vh; overflow-y:auto; padding:32px;">
+        <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:16px;">${isEdit ? 'Edit' : 'Add'} Maintenance Rule</h3>
+        <form onsubmit="submitRuleModal(event)" style="display:flex; flex-direction:column; gap:10px;">
+            <input type="text" id="rule-name" placeholder="Rule Name" required value="${editData ? editData.name : ''}" style="padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+            <select id="rule-type-id" required style="padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"><option value="">Select Maintenance Type...</option>${typeOptions}</select>
+            <textarea id="rule-description" placeholder="Description (optional)" style="padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); resize:vertical; min-height:50px;">${editData ? (editData.description || '') : ''}</textarea>
+
+            <div style="border:1px solid var(--border-light); border-radius:8px; padding:12px;">
+                <label style="font-weight:600; font-size:0.8rem; display:block; margin-bottom:6px;">Trigger Methods</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; margin-bottom:6px;"><input type="checkbox" id="rule-trigger-manual" ${editData && editData.trigger_manual ? 'checked' : ''}/> Manual trigger only</label>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <input type="number" id="rule-trigger-km" placeholder="Trigger KM" step="100" value="${editData && editData.trigger_km != null ? editData.trigger_km : ''}" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                    <input type="number" id="rule-trigger-days" placeholder="Trigger Days" step="1" value="${editData && editData.trigger_days != null ? editData.trigger_days : ''}" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                    <input type="number" id="rule-trigger-hours" placeholder="Trigger Engine Hrs" step="0.5" value="${editData && editData.trigger_hours != null ? editData.trigger_hours : ''}" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+                <input type="number" id="rule-grace-km" placeholder="Grace KM" value="${editData && editData.grace_km != null ? editData.grace_km : 0}" step="100" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                <input type="number" id="rule-grace-days" placeholder="Grace Days" value="${editData && editData.grace_days != null ? editData.grace_days : 0}" step="1" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+                <select id="rule-priority" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);">
+                    <option value="low" ${editData && editData.priority === 'low' ? 'selected' : ''}>Low</option>
+                    <option value="medium" ${editData && editData.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                    <option value="high" ${editData && editData.priority === 'high' ? 'selected' : ''}>High</option>
+                    <option value="critical" ${editData && editData.priority === 'critical' ? 'selected' : ''}>Critical</option>
+                </select>
+                <input type="number" id="rule-order" placeholder="Order" value="${editData && editData.rule_order != null ? editData.rule_order : 0}" step="1" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+            </div>
+
+            <div style="border:1px solid var(--border-light); border-radius:8px; padding:12px;">
+                <label style="font-weight:600; font-size:0.8rem; display:block; margin-bottom:6px;">Validation Intervals (optional)</label>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <input type="number" id="rule-min-km" placeholder="Min KM" step="100" value="${editData && editData.min_interval_km != null ? editData.min_interval_km : ''}" style="flex:1; min-width:100px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                    <input type="number" id="rule-max-km" placeholder="Max KM" step="100" value="${editData && editData.max_interval_km != null ? editData.max_interval_km : ''}" style="flex:1; min-width:100px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                    <input type="number" id="rule-min-days" placeholder="Min Days" step="1" value="${editData && editData.min_interval_days != null ? editData.min_interval_days : ''}" style="flex:1; min-width:100px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                    <input type="number" id="rule-max-days" placeholder="Max Days" step="1" value="${editData && editData.max_interval_days != null ? editData.max_interval_days : ''}" style="flex:1; min-width:100px; padding:8px; border-radius:6px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary);"/>
+                </div>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" id="rule-is-active" ${!editData || editData.is_active ? 'checked' : ''}/> Active</label>
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">${isEdit ? 'Update' : 'Create'} Rule</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+async function submitRuleModal(e) {
+    e.preventDefault();
+    const payload = {
+        name: document.getElementById('rule-name').value,
+        type_id: parseInt(document.getElementById('rule-type-id').value),
+        description: document.getElementById('rule-description').value || null,
+        trigger_km: parseFloat(document.getElementById('rule-trigger-km').value) || null,
+        trigger_days: parseInt(document.getElementById('rule-trigger-days').value) || null,
+        trigger_hours: parseFloat(document.getElementById('rule-trigger-hours').value) || null,
+        trigger_manual: document.getElementById('rule-trigger-manual').checked,
+        grace_km: parseFloat(document.getElementById('rule-grace-km').value) || 0,
+        grace_days: parseInt(document.getElementById('rule-grace-days').value) || 0,
+        priority: document.getElementById('rule-priority').value,
+        rule_order: parseInt(document.getElementById('rule-order').value) || 0,
+        min_interval_km: parseFloat(document.getElementById('rule-min-km').value) || null,
+        max_interval_km: parseFloat(document.getElementById('rule-max-km').value) || null,
+        min_interval_days: parseInt(document.getElementById('rule-min-days').value) || null,
+        max_interval_days: parseInt(document.getElementById('rule-max-days').value) || null,
+        is_active: document.getElementById('rule-is-active').checked
+    };
+    if (!payload.type_id) { showNotification('Please select a maintenance type', 'fault'); return; }
+    try {
+        const url = ruleEditId ? `/api/maintenance/planner/rules/${ruleEditId}` : '/api/maintenance/planner/rules';
+        const method = ruleEditId ? 'PUT' : 'POST';
+        const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify(payload) });
+        if (resp.ok) { closeModal(); await loadPlannerDashboard(); await refreshMaintDashboardCache(); showNotification(`Rule ${ruleEditId ? 'updated' : 'created'}`, 'scheduled'); }
+        else { const err = await resp.json(); showNotification(err.detail || 'Failed to save rule', 'fault'); }
+    } catch (err) { showNotification('Error saving rule', 'fault'); }
+}
+
+async function editRule(id) {
+    try {
+        const resp = await fetch(`/api/maintenance/planner/rules`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!resp.ok) { showNotification('Failed to load rules', 'fault'); return; }
+        const data = await resp.json();
+        const rule = (data.items || []).find(r => r.id === id);
+        if (rule) openRuleModal(rule);
+        else showNotification('Rule not found', 'fault');
+    } catch (err) { showNotification('Error loading rule', 'fault'); }
+}
+
+async function deleteRule(id) {
+    if (!confirm('Delete this rule permanently?')) return;
+    try {
+        const resp = await fetch(`/api/maintenance/planner/rules/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) { await loadPlannerDashboard(); await refreshMaintDashboardCache(); showNotification('Rule deleted', 'scheduled'); }
+        else { const err = await resp.json(); showNotification(err.detail || 'Failed to delete', 'fault'); }
+    } catch (err) { showNotification('Error deleting rule', 'fault'); }
+}
+
+// Refresh dashboard cache after type/rule/template mutations
+async function refreshMaintDashboardCache() {
+    try {
+        const [dashboardResp, summaryResp, tmplResp] = await Promise.all([
+            fetch('/api/maintenance/dashboard', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/types/summary', { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch('/api/maintenance/planner/templates?page_size=500', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        ]);
+        if (dashboardResp.ok) maintDashboardData = await dashboardResp.json();
+        if (summaryResp.ok) {
+            if (!maintDashboardData) maintDashboardData = {};
+            maintDashboardData.type_summary = await summaryResp.json();
+        }
+        if (tmplResp.ok) {
+            const tmplData = await tmplResp.json();
+            const tmplItems = tmplData.items || [];
+            if (!maintDashboardData) maintDashboardData = {};
+            maintDashboardData._templateSummary = {
+                total: tmplData.total || 0,
+                active: tmplItems.filter(t => t.is_active && !t.is_archived).length,
+                inactive: tmplItems.filter(t => !t.is_active && !t.is_archived).length,
+                archived: tmplItems.filter(t => t.is_archived).length
+            };
+            maintDashboardData._templates = tmplItems;
+        }
+        // Also fetch recent types for activity
+        const typesResp = await fetch('/api/maintenance/planner/types?page_size=200&sort_by=updated_at&sort_order=desc', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (typesResp.ok) {
+            const typesData = await typesResp.json();
+            if (!maintDashboardData) maintDashboardData = {};
+            maintDashboardData.recent_types = typesData.items || [];
+        }
+        // Re-render KPI with updated data
+        const kpis = maintDashboardData?.kpis || {};
+        const tSummary = maintDashboardData?.type_summary || maintDashboardData?._typeSummary;
+        const tmplSummary = maintDashboardData?._templateSummary;
+        const tmplItems = maintDashboardData?._templates || [];
+        renderMaintenanceKPI(kpis, tSummary, tmplSummary);
+        renderTemplateCategoryChart(tmplItems);
+        renderRecentTemplateActivity(tmplItems);
+    } catch (e) { /* silent - dashboard just uses stale data if refresh fails */ }
+}
+
+window.initPlanner = initPlanner;
+window.loadPlannerDashboard = loadPlannerDashboard;
+window.switchPlannerTab = switchPlannerTab;
+window.renderPlannerTab = renderPlannerTab;
+window.openTypeModal = openTypeModal;
+window.submitTypeModal = submitTypeModal;
+window.closeModal = closeModal;
+window.editType = editType;
+window.deleteType = deleteType;
+window.openRuleModal = openRuleModal;
+window.submitRuleModal = submitRuleModal;
+window.editRule = editRule;
+window.deleteRule = deleteRule;
+window.openTemplateModal = openTemplateModal;
+window.viewTemplateRules = viewTemplateRules;
+window.deleteTemplate = deleteTemplate;
+window.editTemplate = editTemplate;
+window.duplicateTemplateAction = duplicateTemplateAction;
+window.activateTemplateAction = activateTemplateAction;
+window.deactivateTemplateAction = deactivateTemplateAction;
+window.seedDefaultTemplates = seedDefaultTemplates;
+window.switchTmplFilter = switchTmplFilter;
+window.debouncedTmplSearch = debouncedTmplSearch;
+window.sortTmplTable = sortTmplTable;
+window.gotoTmplPage = gotoTmplPage;
+window.addRuleToTemplateBuilder = addRuleToTemplateBuilder;
+window.moveRuleInBuilder = moveRuleInBuilder;
+window.removeRuleFromBuilder = removeRuleFromBuilder;
+window.saveTemplate = saveTemplate;
+window.renderTemplateRulesList = renderTemplateRulesList;
+window.openPlanModal = openPlanModal;
+window.viewPlanOverrides = viewPlanOverrides;
+window.deletePlan = deletePlan;
+window.openVehicleDetail = openVehicleDetail;
+window.openRuleOverrideModal = openRuleOverrideModal;
+window.deletePlanOverride = deletePlanOverride;
+window.gotoPlanPage = gotoPlanPage;
+window.sortPlanTable = sortPlanTable;
+window.switchPlanFilter = switchPlanFilter;
+window.debouncedPlanSearch = debouncedPlanSearch;
 
 // -----------------------------------------
 // UI Utility Functions
@@ -1981,7 +4326,7 @@ async function loadDashboardData() {
         };
 
         console.log("Fetching live vehicle data...");
-        const vehiclesResp = await fetch('/api/v1/vehicles/live?limit=1000', {
+        const vehiclesResp = await fetch('/api/v1/vehicles/live?limit=5000', {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
@@ -3335,7 +5680,7 @@ async function updateVehicleMarkers() {
     if (!authToken || !map || !document.getElementById('view-map')?.classList.contains('active-view')) return;
     
     try {
-        const resp = await fetch('/api/v1/vehicles/live?limit=1000', {
+        const resp = await fetch('/api/v1/vehicles/live?limit=5000', {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         if (!resp.ok) return;
@@ -7560,46 +9905,80 @@ let driverLeaderboardData = [];
 function initDriverView() {
     if (!driverViewInitialized) {
         driverViewInitialized = true;
-        populateDriverVehicleDropdown();
         loadDriverSummaryStats();
         loadDriverLeaderboard(30);
     }
     if (selectedVehicle) {
-        const sel = document.getElementById('driver-vehicle-selector');
-        if (sel) sel.value = selectedVehicle.id;
+        const input = document.getElementById('driver-vehicle-search');
+        if (input) input.value = selectedVehicle.name || selectedVehicle.id;
         loadDriverAnalytics(selectedVehicle.id);
     }
 }
 
-function populateDriverVehicleDropdown() {
-    const sel = document.getElementById('driver-vehicle-selector');
-    if (!sel) return;
-    fetch('/api/fleet/fdb/ke-vehicles', { headers: { 'Authorization': `Bearer ${authToken}` } })
-        .then(r => r.ok ? r.json() : { vehicles: [] })
-        .then(data => {
-            const vehicles = data.vehicles || [];
-            sel.innerHTML = '<option value="">Select KE Vehicle...</option>' +
-                vehicles.map(v => `<option value="${v.device_id}">${v.alias_name || v.name || v.uniqueId}</option>`).join('');
-            if (selectedVehicle) sel.value = selectedVehicle.id;
-        })
-        .catch(() => {});
+let _driverSearchDebounce = null;
+
+function searchDriverVehicles(query) {
+    const container = document.getElementById('driver-search-results');
+    if (!container) return;
+    clearTimeout(_driverSearchDebounce);
+    _driverSearchDebounce = setTimeout(() => {
+        fetch(`/api/analytics/driver/search?q=${encodeURIComponent(query || '')}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(r => r.ok ? r.json() : [])
+            .then(devices => {
+                if (!devices || !devices.length) {
+                    container.innerHTML = '<div style="padding:12px; color:#94a3b8; font-size:0.8rem;">No vehicles found</div>';
+                    container.style.display = 'block';
+                    return;
+                }
+                container.innerHTML = devices.map(d => {
+                    const statusColor = d.status === 'online' ? '#10b981' : d.status === 'offline' ? '#ef4444' : '#94a3b8';
+                    const srcBadge = d.source === 'traccar'
+                        ? '<span style="font-size:0.6rem; padding:1px 5px; border-radius:4px; background:rgba(99,102,241,0.1); color:#6366f1; font-weight:600;">GPS</span>'
+                        : '<span style="font-size:0.6rem; padding:1px 5px; border-radius:4px; background:rgba(245,158,11,0.1); color:#f59e0b; font-weight:600;">FLEET</span>';
+                    const onclick = d.id
+                        ? `selectDriverVehicle(${d.id}, '${(d.name||'').replace(/'/g,"\\'")}', 'traccar')`
+                        : `selectDriverVehicle(null, '${(d.name||'').replace(/'/g,"\\'")}', 'fleet_alerts')`;
+                    return `<div class="driver-search-item" onclick="${onclick}" style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+                        <span style="width:8px; height:8px; border-radius:50%; background:${statusColor}; flex-shrink:0;"></span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600; font-size:0.82rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${d.name || d.id}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${d.id ? 'ID: ' + d.id : 'Fleet vehicle'}</div>
+                        </div>
+                        ${srcBadge}
+                    </div>`;
+                }).join('');
+                container.style.display = 'block';
+            })
+            .catch(() => { container.style.display = 'none'; });
+    }, 200);
 }
 
-function filterDriverDropdown() {
-    const search = document.getElementById('driver-vehicle-search')?.value.toLowerCase() || '';
-    const sel = document.getElementById('driver-vehicle-selector');
-    if (!sel) return;
-    Array.from(sel.options).forEach(opt => {
-        if (!opt.value) return;
-        opt.style.display = opt.textContent.toLowerCase().includes(search) ? '' : 'none';
-    });
+function selectDriverVehicle(deviceId, name, source) {
+    const input = document.getElementById('driver-vehicle-search');
+    const container = document.getElementById('driver-search-results');
+    if (input) input.value = name || '';
+    if (container) container.style.display = 'none';
+    if (source === 'fleet_alerts' || !deviceId) {
+        loadDriverAnalyticsByName(name);
+    } else {
+        loadDriverAnalytics(deviceId);
+    }
 }
 
-function onDriverVehicleChange() {
-    const sel = document.getElementById('driver-vehicle-selector');
-    const deviceId = sel ? parseInt(sel.value) : 0;
-    if (deviceId) loadDriverAnalytics(deviceId);
-}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#driver-search-container')) {
+        const c = document.getElementById('driver-search-results');
+        if (c) c.style.display = 'none';
+    }
+    if (!e.target.closest('#compare-search-a-container')) {
+        const c = document.getElementById('compare-results-a');
+        if (c) c.style.display = 'none';
+    }
+    if (!e.target.closest('#compare-search-b-container')) {
+        const c = document.getElementById('compare-results-b');
+        if (c) c.style.display = 'none';
+    }
+});
 
 function changeDriverPeriod(days, btn) {
     driverCurrentPeriod = days;
@@ -7671,15 +10050,33 @@ function loadDriverLeaderboard(days) {
 }
 
 function loadDriverAnalyticsByVehicle(vehicleName) {
-    const sel = document.getElementById('driver-vehicle-selector');
-    if (!sel) return;
-    for (let i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].textContent.trim() === vehicleName) {
-            sel.selectedIndex = i;
-            loadDriverAnalytics(parseInt(sel.options[i].value));
-            return;
-        }
-    }
+    if (!vehicleName) return;
+    const input = document.getElementById('driver-vehicle-search');
+    if (input) input.value = vehicleName;
+    fetch(`/api/analytics/driver/search?q=${encodeURIComponent(vehicleName)}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.ok ? r.json() : [])
+        .then(results => {
+            const exact = results.find(d => d.name === vehicleName);
+            if (exact) {
+                if (exact.id) {
+                    loadDriverAnalytics(exact.id);
+                } else {
+                    loadDriverAnalyticsByName(vehicleName);
+                }
+            } else if (results.length > 0) {
+                const first = results[0];
+                if (first.id) {
+                    loadDriverAnalytics(first.id);
+                } else {
+                    loadDriverAnalyticsByName(vehicleName);
+                }
+            } else {
+                loadDriverAnalyticsByName(vehicleName);
+            }
+        })
+        .catch(() => {
+            loadDriverAnalyticsByName(vehicleName);
+        });
 }
 
 function loadDriverAnalytics(deviceId) {
@@ -7736,6 +10133,59 @@ function loadDriverAnalytics(deviceId) {
         .catch(() => {});
 }
 
+function loadDriverAnalyticsByName(vehicleName) {
+    if (!vehicleName) return;
+    fetch(`/api/analytics/driver/by-name/${encodeURIComponent(vehicleName)}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data || data.error) {
+                setTextSafe('intel-driver-name', 'No Driver Data');
+                setTextSafe('intel-vehicle-name', data?.error || 'No data for this vehicle');
+                setTextSafe('intel-eco-score', '--');
+                const bar = document.getElementById('intel-score-bar');
+                if (bar) { bar.style.width = '0%'; bar.style.background = '#e2e8f0'; }
+                const avatar = document.getElementById('intel-driver-avatar');
+                if (avatar) avatar.textContent = '?';
+                setTextSafe('intel-driver-id', '-');
+                setTextSafe('intel-last-activity', '-');
+                setTextSafe('stat-braking-total', 0);
+                setTextSafe('stat-braking-penalized', 0);
+                setTextSafe('stat-braking-grace', 0);
+                setTextSafe('stat-acceleration', 0);
+                setTextSafe('stat-cornering', 0);
+                setTextSafe('stat-idle-penalty', 0);
+                setTextSafe('stat-idle-mins', '0 min');
+                return;
+            }
+
+            setTextSafe('intel-driver-name', data.driver_name || vehicleName);
+            setTextSafe('intel-vehicle-name', data.vehicle_name || '');
+            setTextSafe('intel-driver-id', data.driver_id || '-');
+            setTextSafe('intel-last-activity', data.last_activity ? new Date(data.last_activity).toLocaleDateString('en', { year:'numeric', month:'short', day:'numeric' }) : '-');
+            setTextSafe('intel-eco-score', data.eco_score);
+
+            const scoreColor = data.eco_score >= 80 ? '#10b981' : data.eco_score >= 60 ? '#f59e0b' : '#ef4444';
+            const scoreEl = document.getElementById('intel-eco-score');
+            if (scoreEl) scoreEl.style.color = scoreColor;
+
+            const bar = document.getElementById('intel-score-bar');
+            if (bar) { bar.style.width = data.eco_score + '%'; bar.style.background = scoreColor; }
+
+            const avatar = document.getElementById('intel-driver-avatar');
+            if (avatar) { const n = data.driver_name || 'D'; avatar.textContent = n.charAt(0).toUpperCase(); }
+
+            const stats = data.stats || {};
+            setTextSafe('stat-braking-total', stats.harsh_braking?.total || 0);
+            setTextSafe('stat-braking-penalized', stats.harsh_braking?.penalized || 0);
+            setTextSafe('stat-braking-grace', stats.harsh_braking?.grace_exempted || 0);
+            setTextSafe('stat-acceleration', stats.harsh_acceleration || 0);
+            setTextSafe('stat-cornering', stats.harsh_cornering || 0);
+            setTextSafe('stat-idle-penalty', stats.idle_penalty || 0);
+            setTextSafe('stat-idle-mins', (stats.idle_minutes || 0) + ' min');
+        })
+        .catch(() => {});
+}
+
 function exportDriverLeaderboard() {
     if (!driverLeaderboardData.length) { showToast('No data to export', 'warning'); return; }
     let csv = 'Rank,Driver Name,Vehicle,Eco Score,Braking,Acceleration,Cornering,Trips\n';
@@ -7750,13 +10200,166 @@ function exportDriverLeaderboard() {
     showToast('Leaderboard exported!', 'success');
 }
 
+let _compareSearchDebounce = { a: null, b: null };
+let _compareSelectedDevice = { a: null, b: null };
+
 function openDriverCompareModal() {
-    const sel = document.getElementById('driver-vehicle-selector');
     const section = document.getElementById('driver-compare-section');
     if (section) section.style.display = 'block';
-    if (sel && sel.value) {
-        loadDriverAnalytics(parseInt(sel.value));
+    const inputA = document.getElementById('compare-search-a');
+    if (inputA && !_compareSelectedDevice.a) {
+        inputA.value = '';
+        inputA.focus();
     }
+}
+
+function searchCompareVehicle(slot, query) {
+    const container = document.getElementById(`compare-results-${slot}`);
+    if (!container) return;
+    clearTimeout(_compareSearchDebounce[slot]);
+    _compareSearchDebounce[slot] = setTimeout(() => {
+        fetch(`/api/analytics/driver/search?q=${encodeURIComponent(query || '')}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            .then(r => r.ok ? r.json() : [])
+            .then(devices => {
+                if (!devices || !devices.length) {
+                    container.innerHTML = '<div style="padding:12px; color:#94a3b8; font-size:0.8rem;">No vehicles found</div>';
+                    container.style.display = 'block';
+                    return;
+                }
+                container.innerHTML = devices.map(d => {
+                    const statusColor = d.status === 'online' ? '#10b981' : d.status === 'offline' ? '#ef4444' : '#94a3b8';
+                    const srcBadge = d.source === 'traccar'
+                        ? '<span style="font-size:0.6rem; padding:1px 5px; border-radius:4px; background:rgba(99,102,241,0.1); color:#6366f1; font-weight:600;">GPS</span>'
+                        : '<span style="font-size:0.6rem; padding:1px 5px; border-radius:4px; background:rgba(245,158,11,0.1); color:#f59e0b; font-weight:600;">FLEET</span>';
+                    const onclick = d.id
+                        ? `selectCompareVehicle('${slot}', ${d.id}, '${(d.name||'').replace(/'/g,"\\'")}', 'traccar')`
+                        : `selectCompareVehicle('${slot}', null, '${(d.name||'').replace(/'/g,"\\'")}', 'fleet_alerts')`;
+                    return `<div onclick="${onclick}" style="padding:8px 12px; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:8px; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background=''">
+                        <span style="width:8px; height:8px; border-radius:50%; background:${statusColor}; flex-shrink:0;"></span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:600; font-size:0.82rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${d.name || d.id}</div>
+                            <div style="font-size:0.7rem; color:#94a3b8;">${d.id ? 'ID: ' + d.id : 'Fleet vehicle'}</div>
+                        </div>
+                        ${srcBadge}
+                    </div>`;
+                }).join('');
+                container.style.display = 'block';
+            })
+            .catch(() => { container.style.display = 'none'; });
+    }, 200);
+}
+
+function selectCompareVehicle(slot, deviceId, name, source) {
+    const input = document.getElementById(`compare-search-${slot}`);
+    const container = document.getElementById(`compare-results-${slot}`);
+    if (input) input.value = name || '';
+    if (container) container.style.display = 'none';
+    _compareSelectedDevice[slot] = deviceId;
+    if (source === 'fleet_alerts' || !deviceId) {
+        loadCompareDriverByName(slot, name);
+    } else {
+        loadCompareDriver(slot, deviceId);
+    }
+}
+
+function loadCompareDriver(slot, deviceId) {
+    if (!deviceId) return;
+    const container = document.getElementById(`compare-driver-${slot}`);
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:30px;">Loading...</div>';
+
+    fetch(`/api/analytics/driver/${deviceId}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data || data.error) {
+                container.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:30px;">${data?.error || 'No data'}</div>`;
+                return;
+            }
+            const score = data.eco_score || 0;
+            const scoreColor = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+            const stats = data.stats || {};
+            container.innerHTML = `
+                <div style="text-align:center;margin-bottom:16px;">
+                    <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,${scoreColor},${scoreColor}88);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem;">${(data.driver_name||'D').charAt(0).toUpperCase()}</div>
+                    <div style="font-weight:700;font-size:0.95rem;margin-top:8px;">${data.driver_name || 'Unknown'}</div>
+                    <div style="color:#64748b;font-size:0.75rem;">${data.vehicle_name || ''}</div>
+                </div>
+                <div style="text-align:center;margin-bottom:16px;">
+                    <div style="font-size:2rem;font-weight:800;color:${scoreColor};">${score}</div>
+                    <div style="font-size:0.72rem;color:#94a3b8;">Eco Score</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.75rem;">
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#ef4444;">${stats.harsh_braking?.total || 0}</div>
+                        <div style="color:#94a3b8;">Braking</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#f59e0b;">${stats.harsh_acceleration || 0}</div>
+                        <div style="color:#94a3b8;">Accel</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#f97316;">${stats.harsh_cornering || 0}</div>
+                        <div style="color:#94a3b8;">Corner</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#6366f1;">${stats.idle_minutes || 0}m</div>
+                        <div style="color:#94a3b8;">Idle</div>
+                    </div>
+                </div>`;
+        })
+        .catch(() => {
+            container.innerHTML = '<div style="text-align:center;color:#ef4444;padding:30px;">Failed to load</div>';
+        });
+}
+
+function loadCompareDriverByName(slot, vehicleName) {
+    if (!vehicleName) return;
+    const container = document.getElementById(`compare-driver-${slot}`);
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:30px;">Loading...</div>';
+
+    fetch(`/api/analytics/driver/by-name/${encodeURIComponent(vehicleName)}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data || data.error) {
+                container.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:30px;">${data?.error || 'No data'}</div>`;
+                return;
+            }
+            const score = data.eco_score || 0;
+            const scoreColor = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+            const stats = data.stats || {};
+            container.innerHTML = `
+                <div style="text-align:center;margin-bottom:16px;">
+                    <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,${scoreColor},${scoreColor}88);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem;">${(data.driver_name||'D').charAt(0).toUpperCase()}</div>
+                    <div style="font-weight:700;font-size:0.95rem;margin-top:8px;">${data.driver_name || 'Unknown'}</div>
+                    <div style="color:#64748b;font-size:0.75rem;">${data.vehicle_name || ''}</div>
+                </div>
+                <div style="text-align:center;margin-bottom:16px;">
+                    <div style="font-size:2rem;font-weight:800;color:${scoreColor};">${score}</div>
+                    <div style="font-size:0.72rem;color:#94a3b8;">Eco Score</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.75rem;">
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#ef4444;">${stats.harsh_braking?.total || 0}</div>
+                        <div style="color:#94a3b8;">Braking</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#f59e0b;">${stats.harsh_acceleration || 0}</div>
+                        <div style="color:#94a3b8;">Accel</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#f97316;">${stats.harsh_cornering || 0}</div>
+                        <div style="color:#94a3b8;">Corner</div>
+                    </div>
+                    <div style="padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+                        <div style="font-weight:700;color:#6366f1;">${stats.idle_minutes || 0}m</div>
+                        <div style="color:#94a3b8;">Idle</div>
+                    </div>
+                </div>`;
+        })
+        .catch(() => {
+            container.innerHTML = '<div style="text-align:center;color:#ef4444;padding:30px;">Failed to load</div>';
+        });
 }
 
 // ============================================================================
@@ -8266,3 +10869,1342 @@ function toggleMatrixCollapse(e) {
         setVoiceBtnState('idle');
     }
 })();
+
+// ============================================================
+// WORKSHOP MANAGEMENT MODULE
+// ============================================================
+
+let workshopTabState = 'jobs';
+let workshopDashboardData = {};
+
+const WS_STATUSES = ['pending','assigned','vehicle_arrived','inspection','in_progress','waiting_parts','paused','quality_check','approved','completed','cancelled'];
+const WS_TRANSITIONS = { pending:['assigned','cancelled'], assigned:['vehicle_arrived','cancelled'], vehicle_arrived:['inspection','cancelled'], inspection:['in_progress','cancelled'], in_progress:['waiting_parts','paused','quality_check','cancelled'], waiting_parts:['in_progress','cancelled'], paused:['in_progress','cancelled'], quality_check:['in_progress','approved','cancelled'], approved:['completed','cancelled'], completed:[], cancelled:[] };
+const WS_DEFAULT_CHECKLIST = ['Engine Oil Changed','Oil Filter Installed','Air Filter Checked','Leak Inspection','Road Test','Cleaning','Supervisor Approval'];
+
+function initWorkshop() { loadWorkshopDashboard(); }
+
+async function loadWorkshopDashboard() {
+    try {
+        const res = await fetch('/api/maintenance/workshop/dashboard', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load workshop dashboard');
+        workshopDashboardData = await res.json();
+        renderWorkshopKPI(workshopDashboardData.kpis || {});
+        switchWorkshopTab(workshopTabState);
+    } catch (e) { console.error('Workshop dashboard error:', e); }
+}
+
+function renderWorkshopKPI(kpis) {
+    const c = document.getElementById('workshop-kpi-cards');
+    if (!c) return;
+    const items = [
+        { label: 'Active Jobs', value: kpis.active_jobs || 0, icon: 'clipboard-list', color: '#3b82f6' },
+        { label: 'Pending Jobs', value: kpis.pending_jobs || 0, icon: 'clock', color: '#f59e0b' },
+        { label: 'Completed', value: kpis.completed_jobs || 0, icon: 'check-circle', color: '#10b981' },
+        { label: 'Overdue', value: kpis.overdue_jobs || 0, icon: 'alert-triangle', color: '#ef4444' },
+        { label: 'In Workshop', value: kpis.vehicles_in_workshop || 0, icon: 'warehouse', color: '#8b5cf6' },
+        { label: 'Avg Repair Time', value: (kpis.avg_repair_hours || 0) + 'h', icon: 'timer', color: '#06b6d4' },
+        { label: 'Total Cost', value: kpis.total_maintenance_cost ? formatPKR(kpis.total_maintenance_cost, true) : 'Rs. 0', icon: 'banknote', color: '#14b8a6' },
+    ];
+    c.innerHTML = items.map(i => `<div class="premium-card mini-stat" style="padding:16px; text-align:center;"><div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:8px;"><i data-lucide="${i.icon}" style="width:18px; color:${i.color};"></i><span class="card-label" style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${i.label}</span></div><div class="card-value" style="font-size:1.6rem; font-weight:800; color:${i.color};">${i.value}</div></div>`).join('');
+    safeCreateIcons();
+}
+
+function switchWorkshopTab(tab) {
+    workshopTabState = tab;
+    document.querySelectorAll('.workshop-tab-btn').forEach(b => { b.classList.remove('active'); b.style.background = 'transparent'; b.style.color = 'var(--text-secondary)'; });
+    const btn = document.querySelector(`.workshop-tab-btn[data-wstab="${tab}"]`);
+    if (btn) { btn.classList.add('active'); btn.style.background = 'var(--brand-primary)'; btn.style.color = '#fff'; }
+    if (tab === 'jobs') renderWorkshopJobs();
+    else if (tab === 'technicians') renderWorkshopTechnicians();
+    else if (tab === 'inventory') renderInventoryTab();
+}
+
+async function renderWorkshopJobs() {
+    const tc = document.getElementById('workshop-tab-content');
+    if (!tc) return;
+    try {
+        const res = await fetch('/api/maintenance/workshop/jobs?page_size=200', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load jobs');
+        const data = await res.json();
+        const jobs = data.items || [];
+        let html = `<div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="text" id="ws-job-search" placeholder="Search jobs..." onkeyup="filterWorkshopJobs()" style="flex:1; min-width:200px; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/>
+            <select id="ws-job-status-filter" onchange="filterWorkshopJobs()" style="padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                <option value="">All Status</option>
+                ${WS_STATUSES.map(s => `<option value="${s}">${s.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())}</option>`).join('')}
+            </select>
+            <select id="ws-job-priority-filter" onchange="filterWorkshopJobs()" style="padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                <option value="">All Priority</option>
+                <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+            </select>
+            <button onclick="openWorkshopJobModal()" class="glass-btn primary" style="padding:10px 20px; border:none; cursor:pointer; border-radius:8px; font-weight:600; color:#fff;">+ New Job</button>
+        </div>`;
+        html += `<table class="modern-table" style="width:100%;"><thead><tr><th>Job #</th><th>Vehicle</th><th>Type</th><th>Priority</th><th>Technician</th><th>Status</th><th>Due Date</th><th>Cost</th><th>Actions</th></tr></thead><tbody id="ws-jobs-tbody">`;
+        jobs.forEach(j => {
+            html += `<tr data-status="${j.status}" data-priority="${j.priority}" data-search="${(j.job_number+' '+(j.device_name||'')+' '+(j.type_name||'')).toLowerCase()}">
+                <td><strong>${j.job_number}</strong></td><td>${j.device_name||'N/A'}</td><td>${j.type_name||'N/A'}</td>
+                <td>${wsPriorityBadge(j.priority)}</td><td>${j.technician_name||'<span style="color:var(--text-dim)">Unassigned</span>'}</td>
+                <td>${wsStatusBadge(j.status)}</td><td>${j.due_date?new Date(j.due_date).toLocaleDateString():'-'}</td>
+                <td>${j.total_cost?formatPKR(j.total_cost,true):(j.estimated_cost?'~'+formatPKR(j.estimated_cost,true):'-')}</td>
+                <td><button onclick="openWorkshopJobDetail(${j.id})" class="glass-btn" style="padding:4px 10px; font-size:0.75rem; border:none; cursor:pointer; border-radius:6px; background:var(--brand-primary); color:#fff;">View</button>
+                ${j.status!=='completed'&&j.status!=='cancelled'?`<button onclick="quickUpdateJobStatus(${j.id},'${j.status}')" class="glass-btn" style="padding:4px 10px; font-size:0.75rem; border:none; cursor:pointer; border-radius:6px; background:#f59e0b; color:#fff; margin-left:4px;">Advance</button>`:''}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        html += `<div style="margin-top:12px; color:var(--text-dim); font-size:0.8rem;">Showing ${jobs.length} jobs</div>`;
+        tc.innerHTML = html;
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading jobs</div>'; }
+}
+
+function filterWorkshopJobs() {
+    const search = (document.getElementById('ws-job-search')?.value||'').toLowerCase();
+    const status = document.getElementById('ws-job-status-filter')?.value||'';
+    const priority = document.getElementById('ws-job-priority-filter')?.value||'';
+    document.querySelectorAll('#ws-jobs-tbody tr').forEach(row => {
+        row.style.display = (!search||(row.dataset.search||'').includes(search))&&(!status||row.dataset.status===status)&&(!priority||row.dataset.priority===priority)?'':'none';
+    });
+}
+
+function wsStatusBadge(status) {
+    const colors = { pending:'#f59e0b', assigned:'#3b82f6', vehicle_arrived:'#8b5cf6', inspection:'#a855f7', in_progress:'#8b5cf6', waiting_parts:'#f97316', paused:'#ef4444', quality_check:'#06b6d4', approved:'#10b981', completed:'#10b981', cancelled:'#6b7280' };
+    const labels = { pending:'Pending', assigned:'Assigned', vehicle_arrived:'Vehicle Arrived', inspection:'Inspection', in_progress:'In Progress', waiting_parts:'Waiting Parts', paused:'Paused', quality_check:'Quality Check', approved:'Approved', completed:'Completed', cancelled:'Cancelled' };
+    const c = colors[status]||'#6b7280';
+    return `<span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:600; background:${c}22; color:${c}; border:1px solid ${c}44;">${labels[status]||status}</span>`;
+}
+
+function wsPriorityBadge(priority) {
+    const colors = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#10b981' };
+    const c = colors[priority]||'#6b7280';
+    return `<span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:600; background:${c}22; color:${c};">${(priority||'medium').charAt(0).toUpperCase()+(priority||'medium').slice(1)}</span>`;
+}
+
+function wsStatusFlow(status) {
+    const flow = ['pending','assigned','vehicle_arrived','inspection','in_progress','paused','quality_check','approved','completed'];
+    const icons = { pending:'circle', assigned:'user', vehicle_arrived:'truck', inspection:'search', in_progress:'wrench', paused:'pause-circle', quality_check:'check-square', approved:'thumbs-up', completed:'check-circle' };
+    const idx = flow.indexOf(status);
+    return flow.map((s,i) => {
+        const done = i < idx;
+        const current = i === idx;
+        const colors = { pending:'#f59e0b', assigned:'#3b82f6', vehicle_arrived:'#8b5cf6', inspection:'#a855f7', in_progress:'#8b5cf6', paused:'#ef4444', quality_check:'#06b6d4', approved:'#10b981', completed:'#10b981' };
+        const c = done?'#10b981':(current?colors[s]:'#d1d5db');
+        return `<div style="display:flex; align-items:center; gap:6px;" title="${s}"><div style="width:24px; height:24px; border-radius:50%; background:${c}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; flex-shrink:0;">${done?'&#10003;':(i+1)}</div><span style="font-size:0.72rem; color:${c}; font-weight:${current?'700':'400'}; white-space:nowrap;">${s.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())}</span></div>`;
+    }).join('<div style="width:14px; height:2px; background:#d1d5db; flex-shrink:0;"></div>');
+}
+
+async function openWorkshopJobDetail(jobId) {
+    const modal = document.getElementById('workshop-job-detail-modal');
+    const content = document.getElementById('workshop-job-detail-content');
+    const titleEl = document.getElementById('ws-detail-title');
+    if (!modal||!content) return;
+    modal.style.display = 'flex';
+    content.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch(`/api/maintenance/workshop/jobs/${jobId}`, { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load job');
+        const job = await res.json();
+        titleEl.textContent = `Job ${job.job_number}`;
+
+        let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Job Information</h4>
+                <div style="display:grid; gap:8px; font-size:0.82rem;">
+                    <div><span style="color:var(--text-dim);">Status:</span> ${wsStatusBadge(job.status)}</div>
+                    <div><span style="color:var(--text-dim);">Priority:</span> ${wsPriorityBadge(job.priority)}</div>
+                    <div><span style="color:var(--text-dim);">Vehicle:</span> ${job.device_name||'N/A'} (ID: ${job.device_id})</div>
+                    <div><span style="color:var(--text-dim);">Type:</span> ${job.type_name||'N/A'}</div>
+                    <div><span style="color:var(--text-dim);">Template:</span> ${job.template_name||'N/A'}</div>
+                    <div><span style="color:var(--text-dim);">Technician:</span> ${job.technician_name||'Unassigned'}</div>
+                    <div><span style="color:var(--text-dim);">Odometer:</span> ${job.current_odometer||0} km</div>
+                    <div><span style="color:var(--text-dim);">Due Reason:</span> ${job.due_reason||'N/A'}</div>
+                </div>
+            </div>
+            <div class="premium-card" style="padding:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Cost Breakdown (PKR)</h4>
+                <div style="display:grid; gap:8px; font-size:0.82rem;">
+                    <div><span style="color:var(--text-dim);">Labour Cost:</span> ${job.labour_cost?formatPKR(job.labour_cost,true):'Rs. 0'}</div>
+                    <div><span style="color:var(--text-dim);">Parts Cost:</span> ${job.parts_cost?formatPKR(job.parts_cost,true):'Rs. 0'}</div>
+                    <div><span style="color:var(--text-dim);">Misc Cost:</span> ${job.misc_cost?formatPKR(job.misc_cost,true):'Rs. 0'}</div>
+                    <div style="border-top:1px solid var(--border-light); padding-top:6px; font-weight:700;"><span style="color:var(--text-dim);">Total Cost:</span> ${job.total_cost?formatPKR(job.total_cost,true):'Rs. 0'}</div>
+                    <div><span style="color:var(--text-dim);">Est. Cost:</span> ${job.estimated_cost?formatPKR(job.estimated_cost,true):'-'}</div>
+                    <div><span style="color:var(--text-dim);">Labour Hours:</span> ${job.labour_hours||0}h</div>
+                </div>
+            </div>
+        </div>`;
+
+        html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+            <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Status Flow</h4>
+            <div style="display:flex; align-items:center; gap:0; flex-wrap:wrap; overflow-x:auto;">${wsStatusFlow(job.status)}</div>
+        </div>`;
+
+        if (job.maintenance_history && job.maintenance_history.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Previous Maintenance History</h4>
+                <table class="modern-table" style="width:100%;"><thead><tr><th>Date</th><th>Odometer</th><th>Type</th><th>Technician</th><th>Cost</th></tr></thead><tbody>`;
+            job.maintenance_history.forEach(h => {
+                html += `<tr><td>${h.service_date?new Date(h.service_date).toLocaleDateString():'-'}</td><td>${h.service_value||0} km</td><td>${h.service_type||'-'}</td><td>${h.technician||'-'}</td><td>${h.cost?formatPKR(h.cost,true):'-'}</td></tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+
+        if (job.timeline && job.timeline.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Timeline</h4>
+                <div style="display:flex; flex-direction:column; gap:10px;">`;
+            const tlIcons = { job_created:'plus-circle', assigned:'user-plus', vehicle_arrived:'truck', inspection_started:'search', maintenance_started:'wrench', paused:'pause-circle', resumed:'play-circle', quality_check:'check-square', approved:'thumbs-up', completed:'check-circle', cancelled:'x-circle', attachment_added:'paperclip', note:'message-circle', status_change:'arrow-right-circle' };
+            job.timeline.forEach(n => {
+                const icon = tlIcons[n.note_type]||'clock';
+                const color = n.note_type==='completed'||n.note_type==='approved'?'#10b981':n.note_type==='cancelled'?'#ef4444':'var(--brand-primary)';
+                html += `<div style="display:flex; gap:10px; align-items:flex-start;">
+                    <div style="width:28px; height:28px; border-radius:50%; background:${color}22; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i data-lucide="${icon}" style="width:14px; color:${color};"></i></div>
+                    <div><div style="font-size:0.82rem; font-weight:600;">${n.content}</div><div style="font-size:0.72rem; color:var(--text-dim);">${n.author||''} &middot; ${n.created_at?new Date(n.created_at).toLocaleString():''}</div></div>
+                </div>`;
+            });
+            html += '</div></div>';
+        }
+
+        if (job.quality_checklist && job.quality_checklist.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">QC Checklist ${job.quality_check_passed?'<span style="color:#10b981;">PASSED</span>':'<span style="color:#ef4444;">FAILED</span>'}</h4>
+                <div style="display:grid; gap:6px;">`;
+            job.quality_checklist.forEach(c => {
+                const icon = c.passed?'check-circle':'x-circle';
+                const color = c.passed?'#10b981':'#ef4444';
+                html += `<div style="display:flex; align-items:center; gap:8px; font-size:0.82rem;"><i data-lucide="${icon}" style="width:14px; color:${color};"></i><span>${c.item}</span>${c.remarks?`<span style="color:var(--text-dim); font-size:0.75rem;">— ${c.remarks}</span>`:''}</div>`;
+            });
+            html += '</div></div>';
+        }
+
+        if (job.attachments && job.attachments.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px; color:var(--text-primary);">Attachments (${job.attachments.length})</h4>
+                <div style="display:grid; gap:6px;">`;
+            job.attachments.forEach(a => {
+                const icon = a.file_type==='before_photo'||a.file_type==='after_photo'?'image':a.file_type==='invoice'?'receipt':'file';
+                html += `<div style="display:flex; align-items:center; gap:8px; font-size:0.82rem;"><i data-lucide="${icon}" style="width:14px; color:var(--brand-primary);"></i><span>${a.original_name}</span><span style="color:var(--text-dim); font-size:0.72rem;">(${a.file_type||'document'})</span></div>`;
+            });
+            html += '</div></div>';
+        }
+
+        if (job.status !== 'completed' && job.status !== 'cancelled') {
+            const transitions = job.valid_transitions || WS_TRANSITIONS[job.status] || [];
+            html += `<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">`;
+            transitions.forEach(t => {
+                const label = t.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+                let color = 'var(--brand-primary)';
+                if (t==='cancelled') color='#ef4444';
+                else if (t==='quality_check') color='#06b6d4';
+                else if (t==='approved') color='#10b981';
+                else if (t==='paused') color='#ef4444';
+                else if (t==='inspection') color='#a855f7';
+                html += `<button onclick="transitionWorkshopJob(${job.id},'${t}')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; background:${color}; color:#fff; font-size:0.82rem; font-weight:600;">${label}</button>`;
+            });
+            html += `<button onclick="openWorkshopJobEditModal(${job.id})" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px;">Edit Job</button>`;
+            html += `<button onclick="openQualityCheckModal(${job.id})" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; background:#06b6d4; color:#fff;">QC Checklist</button>`;
+            html += `<button onclick="cancelWorkshopJob(${job.id})" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; background:#ef4444; color:#fff;">Cancel</button>`;
+            html += `</div>`;
+        }
+        content.innerHTML = html;
+        safeCreateIcons();
+    } catch (e) { content.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading job details</div>'; }
+}
+
+function closeWorkshopJobDetail() { const m = document.getElementById('workshop-job-detail-modal'); if(m) m.style.display='none'; }
+
+const wsNextStatus = { pending:'assigned', assigned:'vehicle_arrived', vehicle_arrived:'inspection', inspection:'in_progress', in_progress:'quality_check', waiting_parts:'in_progress', paused:'in_progress', quality_check:'approved', approved:'completed' };
+
+async function quickUpdateJobStatus(jobId, currentStatus) { await transitionWorkshopJob(jobId, wsNextStatus[currentStatus]); }
+
+async function transitionWorkshopJob(jobId, newStatus) {
+    if (!newStatus) return;
+    if (newStatus === 'cancelled') { await cancelWorkshopJob(jobId); return; }
+    try {
+        const res = await fetch(`/api/maintenance/workshop/jobs/${jobId}/transition`, {
+            method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'},
+            body: JSON.stringify({status: newStatus})
+        });
+        if (!res.ok) { const e = await res.json(); alert(e.detail||'Failed to transition'); return; }
+        loadWorkshopDashboard();
+        if (document.getElementById('workshop-job-detail-modal')?.style.display==='flex') openWorkshopJobDetail(jobId);
+    } catch(e) { alert('Error transitioning job'); }
+}
+
+async function approveWorkshopJob(jobId) {
+    try {
+        const res = await fetch(`/api/maintenance/workshop/jobs/${jobId}/approve`, {
+            method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'},
+            body: JSON.stringify({})
+        });
+        if (!res.ok) { const e = await res.json(); alert(e.detail||'Failed to approve'); return; }
+        loadWorkshopDashboard();
+        if (document.getElementById('workshop-job-detail-modal')?.style.display==='flex') openWorkshopJobDetail(jobId);
+    } catch(e) { alert('Error approving job'); }
+}
+
+async function cancelWorkshopJob(jobId) {
+    if (!confirm('Are you sure you want to cancel this job?')) return;
+    try {
+        await fetch(`/api/maintenance/workshop/jobs/${jobId}/cancel`, {
+            method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'},
+            body: JSON.stringify({reason:'Cancelled by user'})
+        });
+        closeWorkshopJobDetail();
+        loadWorkshopDashboard();
+    } catch(e) {}
+}
+
+function openQualityCheckModal(jobId) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center;';
+    let checklistHtml = WS_DEFAULT_CHECKLIST.map((item, idx) => `
+        <label style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; border:1px solid var(--border-light); cursor:pointer; font-size:0.85rem;">
+            <input type="checkbox" id="qc-item-${idx}" style="width:18px; height:18px; accent-color:var(--brand-primary);" />
+            <span>${item}</span>
+        </label>
+    `).join('');
+    modal.innerHTML = `<div class="premium-card" style="width:520px; max-width:90vw; max-height:85vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Quality Check Checklist</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">${checklistHtml}</div>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Inspection Notes</label><textarea id="qc-notes" rows="3" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;"></textarea></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Supervisor Name</label><input type="text" id="qc-supervisor" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="submitQualityCheck(${jobId})" style="flex:1; padding:10px; border-radius:8px; border:none; background:#10b981; color:#fff; cursor:pointer; font-weight:600;">Submit Checklist</button>
+            <button onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+async function submitQualityCheck(jobId) {
+    const notes = document.getElementById('qc-notes')?.value||'';
+    const supervisor = document.getElementById('qc-supervisor')?.value||'Supervisor';
+    const checklist = WS_DEFAULT_CHECKLIST.map((item, idx) => ({
+        item, passed: document.getElementById(`qc-item-${idx}`)?.checked||false, remarks:''
+    }));
+    try {
+        const res = await fetch(`/api/maintenance/workshop/jobs/${jobId}/quality-check`, {
+            method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'},
+            body: JSON.stringify({checklist, notes, checked_by_name: supervisor})
+        });
+        document.querySelector('.modal-overlay.active')?.remove();
+        openWorkshopJobDetail(jobId);
+    } catch(e) {}
+}
+
+function openWorkshopJobModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `<div class="premium-card" style="width:600px; max-width:90vw; max-height:85vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Create Workshop Job</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <form onsubmit="submitWorkshopJob(event)" style="display:flex; flex-direction:column; gap:14px;">
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Vehicle *</label><select id="ws-job-vehicle" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"></select></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Title *</label><input type="text" id="ws-job-title" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Priority</label><select id="ws-job-priority" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Due Date</label><input type="date" id="ws-job-due-date" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Description</label><textarea id="ws-job-desc" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;"></textarea></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Due Reason</label><input type="text" id="ws-job-reason" placeholder="e.g. Oil change overdue by 500km" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Create Job</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    loadVehiclesForSelect('ws-job-vehicle');
+}
+
+async function loadVehiclesForSelect(selectId) {
+    try {
+        const res = await fetch('/api/v1/vehicles/live?limit=500', { headers: authHeaders() });
+        const vehicles = await res.json();
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- Select Vehicle --</option>';
+        (Array.isArray(vehicles)?vehicles:[]).forEach(v => { sel.innerHTML += `<option value="${v.id}">${v.name||v.id}</option>`; });
+    } catch(e) {}
+}
+
+async function submitWorkshopJob(e) {
+    e.preventDefault();
+    const data = {
+        device_id: parseInt(document.getElementById('ws-job-vehicle').value),
+        title: document.getElementById('ws-job-title').value,
+        priority: document.getElementById('ws-job-priority').value,
+        due_date: document.getElementById('ws-job-due-date').value||null,
+        description: document.getElementById('ws-job-desc').value,
+        due_reason: document.getElementById('ws-job-reason').value,
+    };
+    if (!data.device_id) { alert('Please select a vehicle'); return; }
+    await fetch('/api/maintenance/workshop/jobs', {
+        method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    document.querySelector('.modal-overlay.active')?.remove();
+    loadWorkshopDashboard();
+}
+
+function openWorkshopJobEditModal(jobId) {
+    fetch(`/api/maintenance/workshop/jobs/${jobId}`, { headers: authHeaders() })
+        .then(r => r.json()).then(job => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay active';
+            modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center;';
+            modal.innerHTML = `<div class="premium-card" style="width:560px; max-width:90vw; padding:32px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="font-size:1.1rem; font-weight:700;">Edit Job ${job.job_number}</h3>
+                    <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+                </div>
+                <form onsubmit="submitWorkshopJobEdit(event, ${jobId})" style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Priority</label><select id="ws-edit-priority" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                            ${['low','medium','high','critical'].map(p=>`<option value="${p}" ${job.priority===p?'selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')}
+                        </select></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Due Date</label><input type="date" id="ws-edit-due-date" value="${job.due_date?job.due_date.split('T')[0]:''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    </div>
+                    <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Labour Hours</label><input type="number" id="ws-edit-hours" step="0.5" value="${job.labour_hours||0}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Labour Cost (PKR)</label><input type="number" id="ws-edit-labour-cost" step="0.01" value="${job.labour_cost||0}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Parts Cost (PKR)</label><input type="number" id="ws-edit-parts-cost" step="0.01" value="${job.parts_cost||0}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Misc Cost (PKR)</label><input type="number" id="ws-edit-misc-cost" step="0.01" value="${job.misc_cost||0}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    </div>
+                    <div style="background:var(--fleet-bg); padding:10px 14px; border-radius:8px; font-size:0.85rem; font-weight:600; color:var(--brand-primary);">Total Cost: <span id="ws-edit-total-preview">${formatPKR((job.labour_cost||0)+(job.parts_cost||0)+(job.misc_cost||0), true)}</span></div>
+                    <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Notes</label><textarea id="ws-edit-notes" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;">${job.notes||''}</textarea></div>
+                    <div style="display:flex; gap:10px; margin-top:8px;">
+                        <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                        <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Save</button>
+                    </div>
+                </form>
+            </div>`;
+            document.body.appendChild(modal);
+            ['ws-edit-labour-cost','ws-edit-parts-cost','ws-edit-misc-cost'].forEach(id => {
+                document.getElementById(id)?.addEventListener('input', () => {
+                    const l = parseFloat(document.getElementById('ws-edit-labour-cost')?.value)||0;
+                    const p = parseFloat(document.getElementById('ws-edit-parts-cost')?.value)||0;
+                    const m = parseFloat(document.getElementById('ws-edit-misc-cost')?.value)||0;
+                    document.getElementById('ws-edit-total-preview').textContent = formatPKR(l+p+m, true);
+                });
+            });
+        });
+}
+
+async function submitWorkshopJobEdit(e, jobId) {
+    e.preventDefault();
+    const data = {
+        priority: document.getElementById('ws-edit-priority').value,
+        due_date: document.getElementById('ws-edit-due-date').value||null,
+        labour_hours: parseFloat(document.getElementById('ws-edit-hours').value)||0,
+        labour_cost: parseFloat(document.getElementById('ws-edit-labour-cost').value)||0,
+        parts_cost: parseFloat(document.getElementById('ws-edit-parts-cost').value)||0,
+        misc_cost: parseFloat(document.getElementById('ws-edit-misc-cost')?.value)||0,
+        notes: document.getElementById('ws-edit-notes').value,
+    };
+    await fetch(`/api/maintenance/workshop/jobs/${jobId}`, {
+        method:'PUT', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    document.querySelector('.modal-overlay.active')?.remove();
+    openWorkshopJobDetail(jobId);
+    loadWorkshopDashboard();
+}
+
+// ==================== TECHNICIANS ====================
+
+async function renderWorkshopTechnicians() {
+    const tc = document.getElementById('workshop-tab-content');
+    if (!tc) return;
+    try {
+        const res = await fetch('/api/maintenance/workshop/technicians?page_size=200', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load technicians');
+        const data = await res.json();
+        const techs = data.items || [];
+        let html = `<div style="display:flex; gap:10px; margin-bottom:16px; align-items:center;">
+            <input type="text" id="ws-tech-search" placeholder="Search technicians..." onkeyup="filterWorkshopTechs()" style="flex:1; min-width:200px; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/>
+            <button onclick="openTechnicianModal()" class="glass-btn primary" style="padding:10px 20px; border:none; cursor:pointer; border-radius:8px; font-weight:600; color:#fff;">+ Add Technician</button>
+        </div>`;
+        html += `<table class="modern-table" style="width:100%;"><thead><tr><th>Name</th><th>Employee ID</th><th>Phone</th><th>Skills</th><th>Status</th><th>Active Jobs</th><th>Workload</th><th>Completed</th><th>Actions</th></tr></thead><tbody id="ws-techs-tbody">`;
+        techs.forEach(t => {
+            const statusColor = t.status==='available'?'#10b981':t.status==='busy'?'#f59e0b':'#6b7280';
+            const maxWl = t.max_workload||3;
+            const wlPct = t.workload_percent||0;
+            const wlColor = wlPct>=100?'#ef4444':wlPct>=60?'#f59e0b':'#10b981';
+            html += `<tr data-search="${(t.name+' '+t.employee_id).toLowerCase()}">
+                <td><strong>${t.name}</strong></td><td>${t.employee_id}</td><td>${t.phone||'-'}</td>
+                <td>${(t.skills||[]).map(s=>`<span style="display:inline-block; padding:2px 8px; border-radius:8px; font-size:0.7rem; background:#3b82f622; color:#3b82f6; margin:1px;">${s}</span>`).join(' ')||'-'}</td>
+                <td><span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:600; background:${statusColor}22; color:${statusColor};">${t.status.charAt(0).toUpperCase()+t.status.slice(1)}</span></td>
+                <td>${t.active_jobs||0}</td>
+                <td><div style="display:flex; align-items:center; gap:6px;"><div style="width:60px; height:6px; border-radius:3px; background:#d1d5db; overflow:hidden;"><div style="width:${Math.min(wlPct,100)}%; height:100%; background:${wlColor}; border-radius:3px;"></div></div><span style="font-size:0.72rem; color:var(--text-dim);">${t.active_jobs||0}/${maxWl}</span></div></td>
+                <td>${t.completed_jobs||0}</td>
+                <td>
+                    <button onclick="openEditTechnicianModal(${t.id})" class="glass-btn" style="padding:4px 10px; font-size:0.75rem; border:none; cursor:pointer; border-radius:6px;">Edit</button>
+                    <button onclick="deleteTechnician(${t.id})" class="glass-btn" style="padding:4px 10px; font-size:0.75rem; border:none; cursor:pointer; border-radius:6px; background:#ef4444; color:#fff; margin-left:4px;">Delete</button>
+                </td></tr>`;
+        });
+        html += '</tbody></table>';
+        html += `<div style="margin-top:12px; color:var(--text-dim); font-size:0.8rem;">Showing ${techs.length} technicians</div>`;
+        tc.innerHTML = html;
+        safeCreateIcons();
+    } catch(e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading technicians</div>'; }
+}
+
+function filterWorkshopTechs() {
+    const search = (document.getElementById('ws-tech-search')?.value||'').toLowerCase();
+    document.querySelectorAll('#ws-techs-tbody tr').forEach(row => { row.style.display = !search||(row.dataset.search||'').includes(search)?'':'none'; });
+}
+
+function openTechnicianModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `<div class="premium-card" style="width:500px; max-width:90vw; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Add Technician</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <form onsubmit="submitTechnician(event)" style="display:flex; flex-direction:column; gap:14px;">
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Name *</label><input type="text" id="tech-name" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Employee ID *</label><input type="text" id="tech-eid" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Phone</label><input type="text" id="tech-phone" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Max Workload (concurrent jobs)</label><input type="number" id="tech-max-workload" min="1" max="10" value="3" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Skills (comma-separated)</label><input type="text" id="tech-skills" placeholder="oil_change, brake_service, electrical" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Create</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+async function submitTechnician(e) {
+    e.preventDefault();
+    const data = {
+        name: document.getElementById('tech-name').value,
+        employee_id: document.getElementById('tech-eid').value,
+        phone: document.getElementById('tech-phone').value,
+        max_workload: parseInt(document.getElementById('tech-max-workload').value)||3,
+        skills: (document.getElementById('tech-skills').value||'').split(',').map(s=>s.trim()).filter(Boolean),
+    };
+    const res = await fetch('/api/maintenance/workshop/technicians', {
+        method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (!res.ok) { const err = await res.json(); alert(err.detail||'Error creating technician'); return; }
+    document.querySelector('.modal-overlay.active')?.remove();
+    renderWorkshopTechnicians();
+}
+
+async function openEditTechnicianModal(techId) {
+    const res = await fetch('/api/maintenance/workshop/technicians?page_size=200', { headers: authHeaders() });
+    const data = await res.json();
+    const tech = (data.items||[]).find(t=>t.id===techId);
+    if (!tech) return;
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `<div class="premium-card" style="width:500px; max-width:90vw; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Edit Technician</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <form onsubmit="submitEditTechnician(event, ${techId})" style="display:flex; flex-direction:column; gap:14px;">
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Name</label><input type="text" id="tech-edit-name" value="${tech.name}" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Phone</label><input type="text" id="tech-edit-phone" value="${tech.phone||''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Status</label><select id="tech-edit-status" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    <option value="available" ${tech.status==='available'?'selected':''}>Available</option>
+                    <option value="busy" ${tech.status==='busy'?'selected':''}>Busy</option>
+                    <option value="off_duty" ${tech.status==='off_duty'?'selected':''}>Off Duty</option>
+                </select></div>
+            </div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Max Workload</label><input type="number" id="tech-edit-max-workload" min="1" max="10" value="${tech.max_workload||3}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Skills (comma-separated)</label><input type="text" id="tech-edit-skills" value="${(tech.skills||[]).join(', ')}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Save</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+async function submitEditTechnician(e, techId) {
+    e.preventDefault();
+    const data = {
+        name: document.getElementById('tech-edit-name').value,
+        phone: document.getElementById('tech-edit-phone').value,
+        status: document.getElementById('tech-edit-status').value,
+        max_workload: parseInt(document.getElementById('tech-edit-max-workload').value)||3,
+        skills: (document.getElementById('tech-edit-skills').value||'').split(',').map(s=>s.trim()).filter(Boolean),
+    };
+    await fetch(`/api/maintenance/workshop/technicians/${techId}`, {
+        method:'PUT', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    document.querySelector('.modal-overlay.active')?.remove();
+    renderWorkshopTechnicians();
+}
+
+async function deleteTechnician(techId) {
+    if (!confirm('Delete this technician?')) return;
+    await fetch(`/api/maintenance/workshop/technicians/${techId}`, { method:'DELETE', headers: authHeaders() });
+    renderWorkshopTechnicians();
+}
+
+// ==================== INVENTORY & SPARE PARTS MODULE ====================
+const INV_CATEGORIES = ['engine','brakes','electrical','filters','fluids','body','tyres','tools','other'];
+const INV_UNITS = ['pcs','litres','kg','metres','sets','bottles','cans','boxes'];
+const INV_MOVEMENT_TYPES = ['stock_in','stock_out','adjustment','transfer','return','scrap'];
+
+
+// ==================== INVENTORY DASHBOARD ====================
+
+async function renderInventoryTab() {
+    const tc = document.getElementById('workshop-tab-content');
+    if (!tc) return;
+    try {
+        const [dashRes, partsRes] = await Promise.all([
+            fetch('/api/maintenance/inventory/dashboard', { headers: authHeaders() }),
+            fetch('/api/maintenance/inventory/parts?page_size=200', { headers: authHeaders() })
+        ]);
+        const dash = dashRes.ok ? await dashRes.json() : { kpis: {}, alerts: [] };
+        const partsData = partsRes.ok ? await partsRes.json() : { items: [], total: 0 };
+        const kpis = dash.kpis || {};
+        const alerts = dash.alerts || [];
+
+        let html = `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px;">`;
+        const kpiItems = [
+            { label: 'Total Parts', value: kpis.total_parts || 0, icon: 'package', color: '#3b82f6' },
+            { label: 'Available Stock', value: kpis.available_stock || 0, icon: 'box', color: '#10b981' },
+            { label: 'Low Stock', value: kpis.low_stock_items || 0, icon: 'alert-triangle', color: '#f59e0b' },
+            { label: 'Out of Stock', value: kpis.out_of_stock || 0, icon: 'x-circle', color: '#ef4444' },
+            { label: 'Inventory Value', value: formatPKR(kpis.total_inventory_value || 0, true), icon: 'banknote', color: '#8b5cf6' },
+            { label: 'Issued Today', value: kpis.parts_issued_today || 0, icon: 'arrow-up-right', color: '#06b6d4' },
+            { label: 'Returned Today', value: kpis.parts_returned_today || 0, icon: 'arrow-down-left', color: '#14b8a6' },
+            { label: 'Pending Reorder', value: kpis.pending_purchase_items || 0, icon: 'shopping-cart', color: '#f97316' },
+        ];
+        html += kpiItems.map(i => `<div class="premium-card mini-stat" style="padding:14px; text-align:center;"><div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:6px;"><i data-lucide="${i.icon}" style="width:16px; color:${i.color};"></i><span style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${i.label}</span></div><div style="font-size:1.4rem; font-weight:800; color:${i.color};">${i.value}</div></div>`).join('');
+        html += `</div>`;
+
+        if (alerts.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px; border-left:4px solid #ef4444;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:10px; color:var(--text-primary);">Stock Alerts (${alerts.length})</h4>
+                <div style="display:grid; gap:6px;">`;
+            alerts.forEach(a => {
+                const color = a.severity === 'critical' ? '#ef4444' : '#f59e0b';
+                html += `<div style="display:flex; align-items:center; gap:8px; font-size:0.82rem; padding:6px 10px; border-radius:6px; background:${color}11;"><i data-lucide="${a.type === 'out_of_stock' ? 'x-circle' : a.type === 'expired' ? 'clock' : 'alert-triangle'}" style="width:14px; color:${color};"></i><span>${a.message}</span></div>`;
+            });
+            html += `</div></div>`;
+        }
+
+        html += `<div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="inv-search" placeholder="Search parts..." onkeyup="filterInventory()" style="flex:1; min-width:200px; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/>
+            <select id="inv-cat-filter" onchange="filterInventory()" style="padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                <option value="">All Categories</option>
+                ${INV_CATEGORIES.map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+            </select>
+            <select id="inv-status-filter" onchange="filterInventory()" style="padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                <option value="">All Stock Status</option>
+                <option value="in_stock">In Stock</option><option value="low_stock">Low Stock</option><option value="out_of_stock">Out of Stock</option><option value="overstocked">Overstocked</option>
+            </select>
+            <button onclick="openCreatePartModal()" class="glass-btn primary" style="padding:10px 16px; border:none; cursor:pointer; border-radius:8px; font-weight:600; color:#fff;">+ Add Part</button>
+        </div>`;
+
+        const parts = partsData.items || [];
+        html += `<table class="modern-table" style="width:100%;"><thead><tr>
+            <th>Part #</th><th>Name</th><th>Category</th><th>Brand</th><th>Qty</th><th>Min</th><th>Unit Cost</th><th>Total Value</th><th>Location</th><th>Status</th><th>Actions</th>
+        </tr></thead><tbody id="inv-parts-tbody">`;
+        parts.forEach(p => {
+            const st = p.stock_status;
+            const stColor = st === 'in_stock' ? '#10b981' : st === 'low_stock' ? '#f59e0b' : st === 'out_of_stock' ? '#ef4444' : '#8b5cf6';
+            const stLabel = st === 'in_stock' ? 'In Stock' : st === 'low_stock' ? 'Low' : st === 'out_of_stock' ? 'Out' : 'Over';
+            html += `<tr data-category="${p.category||''}" data-stock="${st}" data-search="${(p.part_number+' '+p.name+' '+(p.brand||'')+' '+(p.supplier||'')).toLowerCase()}">
+                <td><strong>${p.part_number}</strong></td><td>${p.name}</td><td>${(p.category||'-').charAt(0).toUpperCase()+(p.category||'').slice(1)}</td>
+                <td>${p.brand||'-'}</td>
+                <td style="font-weight:700; color:${stColor};">${p.current_quantity} ${p.unit}</td>
+                <td>${p.minimum_stock}</td>
+                <td>${formatPKR(p.unit_cost, true)}</td>
+                <td>${formatPKR(p.total_value, true)}</td>
+                <td>${p.storage_location||'-'}</td>
+                <td><span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:600; background:${stColor}22; color:${stColor};">${stLabel}</span></td>
+                <td>
+                    <button onclick="openPartDetail(${p.id})" class="glass-btn" style="padding:4px 8px; font-size:0.72rem; border:none; cursor:pointer; border-radius:6px; background:var(--brand-primary); color:#fff;">View</button>
+                    <button onclick="openStockMovementModal(${p.id},'${p.name}','${p.unit}',${p.current_quantity})" class="glass-btn" style="padding:4px 8px; font-size:0.72rem; border:none; cursor:pointer; border-radius:6px; background:#10b981; color:#fff; margin-left:3px;">Move</button>
+                </td></tr>`;
+        });
+        html += '</tbody></table>';
+        html += `<div style="margin-top:12px; color:var(--text-dim); font-size:0.8rem;">Showing ${parts.length} parts</div>`;
+        tc.innerHTML = html;
+        safeCreateIcons();
+    } catch (e) {
+        tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading inventory</div>';
+    }
+}
+
+function filterInventory() {
+    const search = (document.getElementById('inv-search')?.value||'').toLowerCase();
+    const cat = document.getElementById('inv-cat-filter')?.value||'';
+    const status = document.getElementById('inv-status-filter')?.value||'';
+    document.querySelectorAll('#inv-parts-tbody tr').forEach(row => {
+        row.style.display = (!search||(row.dataset.search||'').includes(search))&&(!cat||row.dataset.category===cat)&&(!status||row.dataset.stock===status)?'':'none';
+    });
+}
+
+// ==================== PART DETAIL ====================
+
+async function openPartDetail(partId) {
+    const modal = document.getElementById('workshop-job-detail-modal');
+    const content = document.getElementById('workshop-job-detail-content');
+    const titleEl = document.getElementById('ws-detail-title');
+    if (!modal||!content) return;
+    modal.style.display = 'flex';
+    content.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch(`/api/maintenance/inventory/parts/${partId}`, { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load part');
+        const p = await res.json();
+        titleEl.textContent = `${p.part_number} — ${p.name}`;
+
+        const stColor = p.stock_status === 'in_stock' ? '#10b981' : p.stock_status === 'low_stock' ? '#f59e0b' : p.stock_status === 'out_of_stock' ? '#ef4444' : '#8b5cf6';
+        let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px;">Part Information</h4>
+                <div style="display:grid; gap:8px; font-size:0.82rem;">
+                    <div><span style="color:var(--text-dim);">Part Number:</span> <strong>${p.part_number}</strong></div>
+                    <div><span style="color:var(--text-dim);">Name:</span> ${p.name}</div>
+                    <div><span style="color:var(--text-dim);">Category:</span> ${(p.category||'-').charAt(0).toUpperCase()+(p.category||'').slice(1)}</div>
+                    <div><span style="color:var(--text-dim);">Brand:</span> ${p.brand||'-'}</div>
+                    <div><span style="color:var(--text-dim);">Vehicle Type:</span> ${p.compatible_vehicle_category||'All'}</div>
+                    <div><span style="color:var(--text-dim);">Unit:</span> ${p.unit}</div>
+                    <div><span style="color:var(--text-dim);">Supplier:</span> ${p.supplier||'-'}</div>
+                    <div><span style="color:var(--text-dim);">Location:</span> ${p.storage_location||'-'}</div>
+                </div>
+            </div>
+            <div class="premium-card" style="padding:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px;">Stock & Cost</h4>
+                <div style="display:grid; gap:8px; font-size:0.82rem;">
+                    <div><span style="color:var(--text-dim);">Current Stock:</span> <strong style="color:${stColor};">${p.current_quantity} ${p.unit}</strong></div>
+                    <div><span style="color:var(--text-dim);">Minimum:</span> ${p.minimum_stock} ${p.unit}</div>
+                    <div><span style="color:var(--text-dim);">Maximum:</span> ${p.maximum_stock} ${p.unit}</div>
+                    <div><span style="color:var(--text-dim);">Unit Cost:</span> ${formatPKR(p.unit_cost, true)}</div>
+                    <div style="border-top:1px solid var(--border-light); padding-top:6px; font-weight:700;"><span style="color:var(--text-dim);">Total Value:</span> ${formatPKR(p.total_value, true)}</div>
+                    <div><span style="color:var(--text-dim);">Status:</span> <span style="color:${stColor}; font-weight:600;">${p.stock_status.replace(/_/g,' ').toUpperCase()}</span></div>
+                    ${p.expiry_date ? `<div><span style="color:var(--text-dim);">Expiry:</span> ${new Date(p.expiry_date).toLocaleDateString()}</div>` : ''}
+                </div>
+            </div>
+        </div>`;
+
+        if (p.recent_movements && p.recent_movements.length > 0) {
+            html += `<div class="premium-card" style="padding:16px; margin-bottom:16px;">
+                <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:12px;">Recent Movements</h4>
+                <table class="modern-table" style="width:100%;"><thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Before</th><th>After</th><th>Cost</th><th>Reason</th><th>User</th></tr></thead><tbody>`;
+            p.recent_movements.forEach(m => {
+                const typeColors = { stock_in:'#10b981', stock_out:'#ef4444', adjustment:'#f59e0b', transfer:'#3b82f6', return:'#14b8a6', scrap:'#6b7280' };
+                const c = typeColors[m.movement_type]||'#6b7280';
+                html += `<tr>
+                    <td>${m.created_at?new Date(m.created_at).toLocaleDateString():'-'}</td>
+                    <td><span style="color:${c}; font-weight:600;">${m.movement_type.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())}</span></td>
+                    <td style="font-weight:700; color:${m.quantity>0?'#10b981':'#ef4444'};">${m.quantity>0?'+':''}${m.quantity}</td>
+                    <td>${m.stock_before}</td><td>${m.stock_after}</td>
+                    <td>${m.total_cost?formatPKR(m.total_cost,true):'-'}</td>
+                    <td>${m.reason||'-'}</td><td>${m.performed_by||'-'}</td></tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+
+        html += `<div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button onclick="openStockMovementModal(${p.id},'${p.name}','${p.unit}',${p.current_quantity})" class="glass-btn primary" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-weight:600; color:#fff;">Record Movement</button>
+            <button onclick="openEditPartModal(${p.id})" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px;">Edit Part</button>
+            <button onclick="deletePart(${p.id})" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; background:#ef4444; color:#fff;">Deactivate</button>
+        </div>`;
+
+        content.innerHTML = html;
+        safeCreateIcons();
+    } catch (e) {
+        content.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading part details</div>';
+    }
+}
+
+// ==================== CREATE PART ====================
+
+function openCreatePartModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `<div class="premium-card" style="width:600px; max-width:90vw; max-height:85vh; overflow-y:auto; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Add Spare Part</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <form onsubmit="submitCreatePart(event)" style="display:flex; flex-direction:column; gap:12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Part Number *</label><input type="text" id="inv-pn" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Name *</label><input type="text" id="inv-name" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Category</label><select id="inv-cat" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    ${INV_CATEGORIES.map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+                </select></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Unit</label><select id="inv-unit" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    ${INV_UNITS.map(u => `<option value="${u}">${u}</option>`).join('')}
+                </select></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Brand</label><input type="text" id="inv-brand" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Vehicle Category</label><select id="inv-vcat" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                    <option value="all">All</option><option value="truck">Truck</option><option value="bus">Bus</option><option value="car">Car</option><option value="generator">Generator</option>
+                </select></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Initial Qty</label><input type="number" id="inv-qty" min="0" value="0" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Min Stock</label><input type="number" id="inv-min" min="0" value="5" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Max Stock</label><input type="number" id="inv-max" min="1" value="100" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Unit Cost (PKR)</label><input type="number" id="inv-cost" min="0" step="0.01" value="0" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Supplier</label><input type="text" id="inv-supplier" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Storage Location</label><input type="text" id="inv-location" placeholder="e.g. Warehouse A, Shelf B3" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Description</label><textarea id="inv-desc" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;"></textarea></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Create Part</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+async function submitCreatePart(e) {
+    e.preventDefault();
+    const data = {
+        part_number: document.getElementById('inv-pn').value,
+        name: document.getElementById('inv-name').value,
+        category: document.getElementById('inv-cat').value,
+        unit: document.getElementById('inv-unit').value,
+        brand: document.getElementById('inv-brand').value,
+        compatible_vehicle_category: document.getElementById('inv-vcat').value,
+        current_quantity: parseFloat(document.getElementById('inv-qty').value)||0,
+        minimum_stock: parseFloat(document.getElementById('inv-min').value)||0,
+        maximum_stock: parseFloat(document.getElementById('inv-max').value)||100,
+        unit_cost: parseFloat(document.getElementById('inv-cost').value)||0,
+        supplier: document.getElementById('inv-supplier').value,
+        storage_location: document.getElementById('inv-location').value,
+        description: document.getElementById('inv-desc').value,
+    };
+    const res = await fetch('/api/maintenance/inventory/parts', {
+        method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (!res.ok) { const err = await res.json(); alert(err.detail||'Error creating part'); return; }
+    document.querySelector('.modal-overlay.active')?.remove();
+    renderInventoryTab();
+}
+
+// ==================== STOCK MOVEMENT ====================
+
+function openStockMovementModal(partId, partName, unit, currentQty) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center;';
+    modal.innerHTML = `<div class="premium-card" style="width:480px; max-width:90vw; padding:32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; font-weight:700;">Stock Movement — ${partName}</h3>
+            <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+        </div>
+        <div style="font-size:0.82rem; color:var(--text-dim); margin-bottom:16px;">Current stock: <strong>${currentQty} ${unit}</strong></div>
+        <form onsubmit="submitStockMovement(event, ${partId})" style="display:flex; flex-direction:column; gap:14px;">
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Movement Type *</label><select id="mov-type" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                <option value="stock_in">Stock In</option><option value="stock_out">Stock Out</option><option value="adjustment">Adjustment</option>
+                <option value="transfer">Transfer</option><option value="return">Return</option><option value="scrap">Scrap</option>
+            </select></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Quantity *</label><input type="number" id="mov-qty" min="0.01" step="0.01" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Unit Cost (PKR)</label><input type="number" id="mov-cost" step="0.01" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            </div>
+            <div id="mov-to-loc-div" style="display:none;"><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">To Location</label><input type="text" id="mov-to-loc" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Reason</label><input type="text" id="mov-reason" placeholder="e.g. Workshop issue, Purchase restock" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Submit</button>
+            </div>
+        </form>
+    </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('mov-type').addEventListener('change', function() {
+        document.getElementById('mov-to-loc-div').style.display = this.value === 'transfer' ? '' : 'none';
+    });
+}
+
+async function submitStockMovement(e, partId) {
+    e.preventDefault();
+    const type = document.getElementById('mov-type').value;
+    const qty = parseFloat(document.getElementById('mov-qty').value)||0;
+    const cost = parseFloat(document.getElementById('mov-cost').value)||0;
+    const reason = document.getElementById('mov-reason').value;
+    const toLoc = document.getElementById('mov-to-loc')?.value||'';
+
+    let endpoint = `/api/maintenance/inventory/parts/${partId}/${type.replace('_','-')}`;
+    let body = { quantity: qty, reason: reason };
+    if (type === 'stock_in') body.unit_cost = cost;
+    if (type === 'adjustment') { body.new_quantity = qty; }
+    if (type === 'transfer') body.to_location = toLoc;
+
+    const res = await fetch(endpoint, {
+        method:'POST', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    if (!res.ok) { const err = await res.json(); alert(err.detail||'Error recording movement'); return; }
+    document.querySelector('.modal-overlay.active')?.remove();
+    renderInventoryTab();
+}
+
+// ==================== EDIT PART ====================
+
+function openEditPartModal(partId) {
+    fetch(`/api/maintenance/inventory/parts/${partId}`, { headers: authHeaders() })
+        .then(r => r.json()).then(p => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay active';
+            modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center;';
+            modal.innerHTML = `<div class="premium-card" style="width:560px; max-width:90vw; padding:32px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="font-size:1.1rem; font-weight:700;">Edit ${p.part_number}</h3>
+                    <button onclick="this.closest('.modal-overlay').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+                </div>
+                <form onsubmit="submitEditPart(event, ${partId})" style="display:flex; flex-direction:column; gap:12px;">
+                    <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Name</label><input type="text" id="ep-name" value="${p.name}" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Category</label><select id="ep-cat" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;">
+                            ${INV_CATEGORIES.map(c => `<option value="${c}" ${p.category===c?'selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+                        </select></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Brand</label><input type="text" id="ep-brand" value="${p.brand||''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Min Stock</label><input type="number" id="ep-min" min="0" value="${p.minimum_stock}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Max Stock</label><input type="number" id="ep-max" min="1" value="${p.maximum_stock}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Unit Cost (PKR)</label><input type="number" id="ep-cost" step="0.01" value="${p.unit_cost}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Supplier</label><input type="text" id="ep-supplier" value="${p.supplier||''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                        <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Location</label><input type="text" id="ep-location" value="${p.storage_location||''}" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                    </div>
+                    <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Description</label><textarea id="ep-desc" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;">${p.description||''}</textarea></div>
+                    <div style="display:flex; gap:10px; margin-top:8px;">
+                        <button type="button" onclick="this.closest('.modal-overlay').remove()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button>
+                        <button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Save</button>
+                    </div>
+                </form>
+            </div>`;
+            document.body.appendChild(modal);
+        });
+}
+
+async function submitEditPart(e, partId) {
+    e.preventDefault();
+    const data = {
+        name: document.getElementById('ep-name').value,
+        category: document.getElementById('ep-cat').value,
+        brand: document.getElementById('ep-brand').value,
+        minimum_stock: parseFloat(document.getElementById('ep-min').value)||0,
+        maximum_stock: parseFloat(document.getElementById('ep-max').value)||100,
+        unit_cost: parseFloat(document.getElementById('ep-cost').value)||0,
+        supplier: document.getElementById('ep-supplier').value,
+        storage_location: document.getElementById('ep-location').value,
+        description: document.getElementById('ep-desc').value,
+    };
+    const res = await fetch(`/api/maintenance/inventory/parts/${partId}`, {
+        method:'PUT', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+    if (!res.ok) { const err = await res.json(); alert(err.detail||'Error updating part'); return; }
+    document.querySelector('.modal-overlay.active')?.remove();
+    openPartDetail(partId);
+}
+
+// ==================== DELETE PART ====================
+
+async function deletePart(partId) {
+    if (!confirm('Deactivate this part?')) return;
+    const res = await fetch(`/api/maintenance/inventory/parts/${partId}`, { method:'DELETE', headers: authHeaders() });
+    if (!res.ok) { alert('Error deactivating part'); return; }
+    document.getElementById('workshop-job-detail-modal').style.display = 'none';
+    renderInventoryTab();
+}
+
+// ==================== REPORTS & ANALYTICS MODULE ====================
+
+let reportsChartInstances = {};
+
+function openReportsView() {
+    switchView('reports');
+    setTimeout(loadReportsDashboard, 200);
+}
+
+async function loadReportsDashboard() {
+    try {
+        const res = await fetch('/api/maintenance/reports/dashboard', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load reports');
+        const kpis = await res.json();
+        renderReportsKPIs(kpis);
+        switchReportsTab('overview');
+    } catch (e) { console.error('Reports dashboard error:', e); }
+}
+
+function renderReportsKPIs(k) {
+    const c = document.getElementById('reports-kpi-cards');
+    if (!c) return;
+    const items = [
+        { label: 'Total Maint. Cost', value: formatPKR(k.total_maintenance_cost || 0, true), icon: 'banknote', color: '#3b82f6' },
+        { label: 'Monthly Cost', value: formatPKR(k.monthly_maintenance_cost || 0, true), icon: 'calendar', color: '#8b5cf6' },
+        { label: 'Total Jobs', value: k.total_workshop_jobs || 0, icon: 'clipboard-list', color: '#06b6d4' },
+        { label: 'Completed', value: k.completed_jobs || 0, icon: 'check-circle', color: '#10b981' },
+        { label: 'Pending', value: k.pending_jobs || 0, icon: 'clock', color: '#f59e0b' },
+        { label: 'Overdue', value: k.overdue_vehicles || 0, icon: 'alert-triangle', color: '#ef4444' },
+        { label: 'Fleet Health', value: (k.fleet_health_score || 0) + '%', icon: 'heart-pulse', color: '#14b8a6' },
+        { label: 'Inventory Value', value: formatPKR(k.inventory_value || 0, true), icon: 'package', color: '#f97316' },
+        { label: 'Parts Consumed', value: k.parts_consumed || 0, icon: 'arrow-up-right', color: '#ec4899' },
+        { label: 'Avg Repair Time', value: (k.average_repair_time_hours || 0) + 'h', icon: 'timer', color: '#06b6d4' },
+    ];
+    if (k.top_maintenance_vehicle) {
+        items.push({ label: 'Top Maint. Vehicle', value: k.top_maintenance_vehicle.name || 'N/A', icon: 'truck', color: '#ef4444' });
+    }
+    c.innerHTML = items.map(i => `<div class="premium-card mini-stat" style="padding:12px; text-align:center;"><div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:4px;"><i data-lucide="${i.icon}" style="width:16px; color:${i.color};"></i><span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">${i.label}</span></div><div style="font-size:1.2rem; font-weight:800; color:${i.color};">${i.value}</div></div>`).join('');
+    safeCreateIcons();
+}
+
+function switchReportsTab(tab) {
+    document.querySelectorAll('.reports-tab-btn').forEach(b => { b.classList.remove('active'); b.style.background = 'transparent'; b.style.color = 'var(--text-secondary)'; });
+    const btn = document.querySelector(`.reports-tab-btn[data-rptab="${tab}"]`);
+    if (btn) { btn.classList.add('active'); btn.style.background = 'var(--brand-primary)'; btn.style.color = '#fff'; }
+    Object.values(reportsChartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+    reportsChartInstances = {};
+    if (tab === 'overview') loadReportsOverview();
+    else if (tab === 'cost') loadCostReports();
+    else if (tab === 'workshop') loadWorkshopReports();
+    else if (tab === 'technicians') loadTechnicianReports();
+    else if (tab === 'inventory') loadInventoryReports();
+    else if (tab === 'vehicles') loadVehicleReports();
+    else if (tab === 'monthly') loadMonthlyYearlyReports();
+}
+
+// ==================== OVERVIEW ====================
+
+async function loadReportsOverview() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const [costRes, statusRes] = await Promise.all([
+            fetch('/api/maintenance/reports/charts/cost-trend?months=12', { headers: authHeaders() }),
+            fetch('/api/maintenance/reports/charts/status-distribution', { headers: authHeaders() })
+        ]);
+        const costData = costRes.ok ? await costRes.json() : { labels: [], costs: [], counts: [] };
+        const statusData = statusRes.ok ? await statusRes.json() : { labels: [], values: [] };
+
+        let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Maintenance Cost Trend (12 Months)</h4><div style="position:relative; height:280px;"><canvas id="rptCostTrend"></canvas></div></div>
+            <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Job Status Distribution</h4><div style="position:relative; height:280px;"><canvas id="rptStatusDist"></canvas></div></div>
+        </div>`;
+        html += `<div style="display:flex; gap:10px; margin-bottom:16px;">
+            <button onclick="exportReportCSV('overview')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button>
+            <button onclick="window.print()" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Print</button>
+        </div>`;
+        tc.innerHTML = html;
+
+        if (costData.labels.length > 0) {
+            const ctx1 = document.getElementById('rptCostTrend');
+            if (ctx1) reportsChartInstances.costTrend = new Chart(ctx1, {
+                type: 'line', data: { labels: costData.labels, datasets: [{ label: 'Cost (PKR)', data: costData.costs, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }, { label: 'Jobs', data: costData.counts, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: false, tension: 0.3, yAxisID: 'y1' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { position: 'left', ticks: { callback: v => 'Rs.' + (v/1000).toFixed(0) + 'k' } }, y1: { position: 'right', grid: { drawOnChartArea: false } } } }
+            });
+        }
+        if (statusData.labels.length > 0) {
+            const ctx2 = document.getElementById('rptStatusDist');
+            if (ctx2) {
+                const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#f97316','#14b8a6','#6b7280','#a855f7'];
+                reportsChartInstances.statusDist = new Chart(ctx2, {
+                    type: 'doughnut', data: { labels: statusData.labels, datasets: [{ data: statusData.values, backgroundColor: colors.slice(0, statusData.labels.length) }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } }
+                });
+            }
+        }
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading overview</div>'; }
+}
+
+// ==================== COST ANALYSIS ====================
+
+async function loadCostReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch('/api/maintenance/reports/cost-analytics?days=365', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        let html = `<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase;">Labour Cost</div><div style="font-size:1.3rem; font-weight:800; color:#3b82f6;">${formatPKR(data.total_labour_cost, true)}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase;">Parts Cost</div><div style="font-size:1.3rem; font-weight:800; color:#10b981;">${formatPKR(data.total_parts_cost, true)}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase;">Misc Cost</div><div style="font-size:1.3rem; font-weight:800; color:#f59e0b;">${formatPKR(data.total_misc_cost, true)}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim); text-transform:uppercase;">Maintenance Cost</div><div style="font-size:1.3rem; font-weight:800; color:#8b5cf6;">${formatPKR(data.total_maintenance_cost, true)}</div></div>
+        </div>`;
+        html += `<div style="display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Monthly Cost Trend</h4><div style="position:relative; height:280px;"><canvas id="rptCostMonthly"></canvas></div></div>
+            <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Cost Breakdown</h4><div style="position:relative; height:280px;"><canvas id="rptCostPie"></canvas></div></div>
+        </div>`;
+        if (data.vehicle_costs && data.vehicle_costs.length > 0) {
+            html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Top Vehicles by Cost</h4><table class="modern-table" style="width:100%;"><thead><tr><th>Vehicle</th><th>Jobs</th><th>Total Cost (PKR)</th></tr></thead><tbody>`;
+            data.vehicle_costs.forEach(v => { html += `<tr><td>${v.device_name}</td><td>${v.jobs}</td><td>${formatPKR(v.total_cost, true)}</td></tr>`; });
+            html += '</tbody></table></div>';
+        }
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('cost')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button></div>`;
+        tc.innerHTML = html;
+
+        if (data.monthly_trend && data.monthly_trend.length > 0) {
+            const ctx = document.getElementById('rptCostMonthly');
+            if (ctx) reportsChartInstances.costMonthly = new Chart(ctx, {
+                type: 'bar', data: { labels: data.monthly_trend.map(m => m.month), datasets: [
+                    { label: 'Labour', data: data.monthly_trend.map(m => m.labour), backgroundColor: '#3b82f6' },
+                    { label: 'Parts', data: data.monthly_trend.map(m => m.parts), backgroundColor: '#10b981' },
+                    { label: 'Misc', data: data.monthly_trend.map(m => m.misc), backgroundColor: '#f59e0b' }
+                ]}, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => 'Rs.' + (v/1000).toFixed(0) + 'k' } } } }
+            });
+        }
+        const pieCtx = document.getElementById('rptCostPie');
+        if (pieCtx) reportsChartInstances.costPie = new Chart(pieCtx, {
+            type: 'doughnut', data: { labels: ['Labour', 'Parts', 'Misc', 'Maintenance'], datasets: [{ data: [data.total_labour_cost, data.total_parts_cost, data.total_misc_cost, data.total_maintenance_cost], backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading cost reports</div>'; }
+}
+
+// ==================== WORKSHOP REPORTS ====================
+
+async function loadWorkshopReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch('/api/maintenance/reports/workshop-performance?days=90', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        let html = `<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px;">
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">TOTAL JOBS</div><div style="font-size:1.3rem; font-weight:800; color:#3b82f6;">${data.total_jobs}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">COMPLETED</div><div style="font-size:1.3rem; font-weight:800; color:#10b981;">${data.completed}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">IN PROGRESS</div><div style="font-size:1.3rem; font-weight:800; color:#f59e0b;">${data.in_progress}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">AVG REPAIR HOURS</div><div style="font-size:1.3rem; font-weight:800; color:#06b6d4;">${data.avg_repair_hours}h</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">TOTAL COST</div><div style="font-size:1.3rem; font-weight:800; color:#8b5cf6;">${formatPKR(data.total_cost, true)}</div></div>
+            <div class="premium-card" style="padding:14px; text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">AVG COST/JOB</div><div style="font-size:1.3rem; font-weight:800; color:#ec4899;">${formatPKR(data.avg_cost, true)}</div></div>
+        </div>`;
+        html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Monthly Job Trend</h4><div style="position:relative; height:250px;"><canvas id="rptJobTrend"></canvas></div></div>`;
+        if (data.status_counts) {
+            html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Status Breakdown</h4><div style="display:flex; flex-wrap:wrap; gap:8px;">`;
+            Object.entries(data.status_counts).forEach(([s, c]) => {
+                if (c > 0) html += `<div style="padding:6px 14px; border-radius:8px; background:var(--brand-primary)11; font-size:0.82rem;"><strong>${c}</strong> ${s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>`;
+            });
+            html += '</div></div>';
+        }
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('workshop')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button></div>`;
+        tc.innerHTML = html;
+
+        if (data.monthly_trend && data.monthly_trend.length > 0) {
+            const ctx = document.getElementById('rptJobTrend');
+            if (ctx) reportsChartInstances.jobTrend = new Chart(ctx, {
+                type: 'bar', data: { labels: data.monthly_trend.map(m => m.month), datasets: [{ label: 'Jobs', data: data.monthly_trend.map(m => m.count), backgroundColor: '#3b82f6', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading workshop reports</div>'; }
+}
+
+// ==================== TECHNICIAN REPORTS ====================
+
+async function loadTechnicianReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch('/api/maintenance/reports/technician-performance', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed');
+        const techs = await res.json();
+        if (techs.length === 0) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">No Data Available</div>'; return; }
+
+        let html = `<div class="premium-card" style="padding:20px; margin-bottom:20px;">
+            <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Technician Performance</h4>
+            <table class="modern-table" style="width:100%;"><thead><tr><th>Name</th><th>Employee ID</th><th>Completed</th><th>Active</th><th>Avg Time</th><th>Approval Rate</th><th>Total Cost</th></tr></thead><tbody>`;
+        techs.forEach(t => {
+            html += `<tr><td><strong>${t.name}</strong></td><td>${t.employee_id}</td><td>${t.completed_jobs}</td><td>${t.active_jobs}</td><td>${t.avg_completion_hours}h</td><td>${t.approval_rate}%</td><td>${formatPKR(t.total_cost, true)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Jobs by Technician</h4><div style="position:relative; height:280px;"><canvas id="rptTechJobs"></canvas></div></div>`;
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('technicians')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button></div>`;
+        tc.innerHTML = html;
+
+        const ctx = document.getElementById('rptTechJobs');
+        if (ctx) reportsChartInstances.techJobs = new Chart(ctx, {
+            type: 'bar', data: { labels: techs.map(t => t.name), datasets: [{ label: 'Completed', data: techs.map(t => t.completed_jobs), backgroundColor: '#10b981', borderRadius: 4 }, { label: 'Active', data: techs.map(t => t.active_jobs), backgroundColor: '#f59e0b', borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading technician reports</div>'; }
+}
+
+// ==================== INVENTORY REPORTS ====================
+
+async function loadInventoryReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const [invRes, lowRes, catRes] = await Promise.all([
+            fetch('/api/maintenance/reports/inventory-analytics', { headers: authHeaders() }),
+            fetch('/api/maintenance/reports/low-stock', { headers: authHeaders() }),
+            fetch('/api/maintenance/reports/charts/inventory-by-category', { headers: authHeaders() })
+        ]);
+        const inv = invRes.ok ? await invRes.json() : {};
+        const low = lowRes.ok ? await lowRes.json() : [];
+        const cat = catRes.ok ? await catRes.json() : { labels: [], values: [] };
+
+        let html = '';
+        if (cat.labels.length > 0) {
+            html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+                <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Inventory Value by Category</h4><div style="position:relative; height:280px;"><canvas id="rptInvCat"></canvas></div></div>
+                <div class="premium-card" style="padding:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Most Used Parts</h4><div style="position:relative; height:280px;"><canvas id="rptMostUsed"></canvas></div></div>
+            </div>`;
+        }
+        if (low.length > 0) {
+            html += `<div class="premium-card" style="padding:20px; margin-bottom:20px; border-left:4px solid #ef4444;">
+                <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Low Stock Items (${low.length})</h4>
+                <table class="modern-table" style="width:100%;"><thead><tr><th>Part #</th><th>Name</th><th>Current</th><th>Minimum</th><th>Deficit</th><th>Reorder Cost</th><th>Status</th></tr></thead><tbody>`;
+            low.forEach(l => {
+                const sc = l.status === 'OUT_OF_STOCK' ? '#ef4444' : '#f59e0b';
+                html += `<tr><td>${l.part_number}</td><td>${l.name}</td><td>${l.current_stock}</td><td>${l.minimum_stock}</td><td>${l.deficit}</td><td>${formatPKR(l.reorder_cost, true)}</td><td><span style="color:${sc}; font-weight:600;">${l.status.replace(/_/g, ' ')}</span></td></tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('inventory')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button></div>`;
+        tc.innerHTML = html;
+
+        if (cat.labels.length > 0) {
+            const ctx1 = document.getElementById('rptInvCat');
+            if (ctx1) {
+                const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#f97316','#14b8a6'];
+                reportsChartInstances.invCat = new Chart(ctx1, {
+                    type: 'pie', data: { labels: cat.labels, datasets: [{ data: cat.values, backgroundColor: colors.slice(0, cat.labels.length) }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                });
+            }
+        }
+        if (inv.most_used_parts && inv.most_used_parts.length > 0) {
+            const ctx2 = document.getElementById('rptMostUsed');
+            if (ctx2) reportsChartInstances.mostUsed = new Chart(ctx2, {
+                type: 'bar', data: { labels: inv.most_used_parts.map(p => p.part_name), datasets: [{ label: 'Usage Count', data: inv.most_used_parts.map(p => p.usage_count), backgroundColor: '#3b82f6', borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
+            });
+        }
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading inventory reports</div>'; }
+}
+
+// ==================== VEHICLE REPORTS ====================
+
+async function loadVehicleReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const res = await fetch('/api/maintenance/reports/vehicle-downtime?days=90', { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+
+        if (data.length === 0) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">No Data Available</div>'; return; }
+
+        let html = `<div class="premium-card" style="padding:20px; margin-bottom:20px;">
+            <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Vehicle Downtime Report (Last 90 Days)</h4>
+            <table class="modern-table" style="width:100%;"><thead><tr><th>Vehicle</th><th>Visits</th><th>Total Hours</th><th>Total Cost (PKR)</th><th>First Visit</th><th>Last Visit</th></tr></thead><tbody>`;
+        data.forEach(v => {
+            html += `<tr><td><strong>${v.device_name}</strong></td><td>${v.visit_count}</td><td>${v.total_hours}h</td><td>${formatPKR(v.total_cost, true)}</td><td>${v.first_visit ? new Date(v.first_visit).toLocaleDateString() : '-'}</td><td>${v.last_visit ? new Date(v.last_visit).toLocaleDateString() : '-'}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">Vehicle Downtime Hours</h4><div style="position:relative; height:280px;"><canvas id="rptDownTime"></canvas></div></div>`;
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('vehicles')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button></div>`;
+        tc.innerHTML = html;
+
+        const ctx = document.getElementById('rptDownTime');
+        if (ctx) reportsChartInstances.downTime = new Chart(ctx, {
+            type: 'bar', data: { labels: data.map(v => v.device_name), datasets: [{ label: 'Hours', data: data.map(v => v.total_hours), backgroundColor: '#ef4444', borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading vehicle reports</div>'; }
+}
+
+// ==================== MONTHLY / YEARLY ====================
+
+async function loadMonthlyYearlyReports() {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    tc.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">Loading...</div>';
+    try {
+        const now = new Date();
+        const [monthRes, yearRes] = await Promise.all([
+            fetch(`/api/maintenance/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth()+1}`, { headers: authHeaders() }),
+            fetch(`/api/maintenance/reports/yearly?year=${now.getFullYear()}`, { headers: authHeaders() })
+        ]);
+        const month = monthRes.ok ? await monthRes.json() : {};
+        const year = yearRes.ok ? await yearRes.json() : {};
+
+        let html = `<div class="premium-card" style="padding:20px; margin-bottom:20px;">
+            <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">${month.month_name || ''} ${month.year || now.getFullYear()} Summary</h4>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">JOBS CREATED</div><div style="font-size:1.2rem; font-weight:800; color:#3b82f6;">${month.jobs_created || 0}</div></div>
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">JOBS COMPLETED</div><div style="font-size:1.2rem; font-weight:800; color:#10b981;">${month.jobs_completed || 0}</div></div>
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">TOTAL COST</div><div style="font-size:1.2rem; font-weight:800; color:#8b5cf6;">${formatPKR(month.total_cost || 0, true)}</div></div>
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">WORKSHOP COST</div><div style="font-size:1.2rem; font-weight:800; color:#f59e0b;">${formatPKR(month.workshop_cost || 0, true)}</div></div>
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">MAINT. SERVICES</div><div style="font-size:1.2rem; font-weight:800; color:#06b6d4;">${month.maintenance_services || 0}</div></div>
+                <div style="text-align:center;"><div style="font-size:0.72rem; color:var(--text-dim);">PARTS CONSUMED</div><div style="font-size:1.2rem; font-weight:800; color:#ec4899;">${month.parts_consumed || 0}</div></div>
+            </div>
+        </div>`;
+        if (year.monthly_data && year.monthly_data.length > 0) {
+            html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;">
+                <h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">${year.year} Yearly Overview — Total: ${formatPKR(year.total_cost, true)}</h4>
+                <table class="modern-table" style="width:100%;"><thead><tr><th>Month</th><th>Jobs</th><th>Cost (PKR)</th></tr></thead><tbody>`;
+            year.monthly_data.forEach(m => { html += `<tr><td>${m.month_name}</td><td>${m.jobs}</td><td>${formatPKR(m.cost, true)}</td></tr>`; });
+            html += '</tbody></table></div>';
+            html += `<div class="premium-card" style="padding:20px; margin-bottom:20px;"><h4 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;">${year.year} Monthly Costs</h4><div style="position:relative; height:280px;"><canvas id="rptYearCost"></canvas></div></div>`;
+        }
+        html += `<div style="display:flex; gap:10px;"><button onclick="exportReportCSV('monthly')" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Export CSV</button><button onclick="window.print()" class="glass-btn" style="padding:8px 16px; border:none; cursor:pointer; border-radius:8px; font-size:0.82rem;">Print</button></div>`;
+        tc.innerHTML = html;
+
+        if (year.monthly_data && year.monthly_data.length > 0) {
+            const ctx = document.getElementById('rptYearCost');
+            if (ctx) reportsChartInstances.yearCost = new Chart(ctx, {
+                type: 'line', data: { labels: year.monthly_data.map(m => m.month_name), datasets: [{ label: 'Cost (PKR)', data: year.monthly_data.map(m => m.cost), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => 'Rs.' + (v/1000).toFixed(0) + 'k' } } } }
+            });
+        }
+    } catch (e) { tc.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-dim);">Error loading monthly/yearly reports</div>'; }
+}
+
+// ==================== EXPORT ====================
+
+function exportReportCSV(type) {
+    const tc = document.getElementById('reports-tab-content');
+    if (!tc) return;
+    const table = tc.querySelector('table');
+    if (!table) { alert('No data table to export'); return; }
+    let csv = '';
+    table.querySelectorAll('tr').forEach(row => {
+        const cols = [];
+        row.querySelectorAll('th, td').forEach(cell => { cols.push('"' + cell.textContent.trim().replace(/"/g, '""') + '"'); });
+        csv += cols.join(',') + '\n';
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `report_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+}

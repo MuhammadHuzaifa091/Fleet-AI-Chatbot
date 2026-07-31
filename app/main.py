@@ -11,6 +11,12 @@ from app.api.embeddings import router as embeddings_router
 from app.api.stats import router as stats_router
 from app.api.traccar_webhooks import router as traccar_webhooks_router
 from app.api.analytics import router as analytics_router
+from app.api.maintenance import router as maintenance_router
+from app.api.maintenance_planner import router as planner_router
+from app.api.workshop import router as workshop_router
+from app.api.inventory import router as inventory_router
+from app.api.reports import router as reports_router
+from app.api.fleet_data import router as fleet_data_router
 # from app.api.sync import router as sync_router  # DISABLED: sync services stopped
 from app.api.proxy import router as proxy_router
 from app.core.config import settings
@@ -66,6 +72,12 @@ app.include_router(telemetry_router, prefix="/api/v1/telemetry", tags=["Telemetr
 app.include_router(embeddings_router, prefix="/api/v1/embeddings", tags=["Embeddings"])
 app.include_router(stats_router, prefix="/api/v1/stats", tags=["Stats"])
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(maintenance_router, prefix="/api/maintenance", tags=["Maintenance"])
+app.include_router(planner_router, prefix="/api/maintenance/planner", tags=["Maintenance Planner"])
+app.include_router(workshop_router, prefix="/api/maintenance/workshop", tags=["Workshop"])
+app.include_router(inventory_router, prefix="/api/maintenance/inventory", tags=["Inventory"])
+app.include_router(reports_router, prefix="/api/maintenance/reports", tags=["Reports"])
+app.include_router(fleet_data_router, prefix="/api/fleet", tags=["Fleet"])
 # app.include_router(sync_router, prefix="/api/v1/sync", tags=["Sync"])  # DISABLED: sync services stopped
 app.include_router(traccar_webhooks_router, prefix="/api/traccar/webhook", tags=["Webhooks"])
 app.include_router(proxy_router, prefix="/api/traccar", tags=["Traccar Proxy"])

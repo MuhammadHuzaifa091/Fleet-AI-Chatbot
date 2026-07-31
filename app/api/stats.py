@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, HTTPException, BackgroundTasks
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -8,6 +8,7 @@ from app.api.auth import get_current_user, DEMO_ACCOUNTS
 from app.services.analytics_service import AnalyticsService
 from app.services.report_service import ReportService
 from app.retrievers.sql_retriever import SQLRetriever
+from app.services.traccar_api_client import get_traccar_client
 from typing import Dict, Any
 
 router = APIRouter()
@@ -20,49 +21,67 @@ async def get_stats_summary(
     """Return key fleet stats for the dashboard analytics panel."""
     try:
         role = current_user.get("role", "USER")
-        user_id = current_user.get("id", 0)
+
+        traccar = await get_traccar_client()
+        devices = await traccar.get_devices()
+
+        if devices:
+            total = len(devices)
+            online = sum(1 for d in devices if d.get("status") == "online")
+            offline = total - online
+            moving = sum(1 for d in devices if d.get("position", {}).get("speed", 0) > 1
+                         if d.get("position")) or 0
+
+            overspeed_events = await traccar.get_events(
+                event_type="deviceOverspeed",
+                from_iso=(datetime.utcnow() - timedelta(days=1)).isoformat()
+            )
+            overspeed = len(overspeed_events) if overspeed_events else 0
+
+            return {
+                "total_vehicles": total,
+                "online": online,
+                "offline": offline,
+                "moving": moving,
+                "stationary": max(0, online - moving),
+                "overspeed_today": overspeed,
+                "role": role,
+                "source": "traccar_api"
+            }
 
         from app.models.traccar import Device, Position, Event, UserDevice
         from sqlalchemy import select, func
-        from datetime import timedelta
 
         if role == "SUPERADMIN" or role == "ADMIN":
-            # Full fleet stats
             total_res = await db.execute(select(func.count(Device.id)).where(Device.disabled == False))
             total = total_res.scalar() or 0
-
             online_res = await db.execute(select(func.count(Device.id)).where(Device.status == 'online', Device.disabled == False))
             online = online_res.scalar() or 0
-
             moving_res = await db.execute(
                 select(func.count(Device.id))
                 .join(Position, Device.positionid == Position.id)
                 .where(Device.disabled == False, Position.speed > 1)
             )
             moving = moving_res.scalar() or 0
-
             overspeed_res = await db.execute(
                 select(func.count(Event.id))
                 .where(Event.type == 'deviceOverspeed', Event.eventtime >= datetime.utcnow() - timedelta(days=1))
             )
             overspeed = overspeed_res.scalar() or 0
-
         else:
-            # Restricted USER — only their assigned devices
+            user_id = current_user.get("id", 0)
             total_res = await db.execute(
                 select(func.count(Device.id))
                 .join(UserDevice, UserDevice.deviceid == Device.id)
                 .where(UserDevice.userid == user_id, Device.disabled == False)
             )
             total = total_res.scalar() or 0
-
             online_res = await db.execute(
                 select(func.count(Device.id))
                 .join(UserDevice, UserDevice.deviceid == Device.id)
                 .where(UserDevice.userid == user_id, Device.status == 'online', Device.disabled == False)
             )
             online = online_res.scalar() or 0
-
             moving_res = await db.execute(
                 select(func.count(Device.id))
                 .join(Position, Device.positionid == Position.id)
@@ -70,11 +89,9 @@ async def get_stats_summary(
                 .where(UserDevice.userid == user_id, Device.disabled == False, Position.speed > 1)
             )
             moving = moving_res.scalar() or 0
-
-            overspeed = 0  # Simplified for USER role
+            overspeed = 0
 
         offline = total - online
-
         return {
             "total_vehicles": int(total),
             "online": int(online),
@@ -82,7 +99,8 @@ async def get_stats_summary(
             "moving": int(moving),
             "stationary": int(online - moving),
             "overspeed_today": int(overspeed),
-            "role": role
+            "role": role,
+            "source": "mysql"
         }
 
     except Exception as e:

@@ -131,6 +131,14 @@
                         <i data-lucide="wrench"></i>
                         <span>Maintenance</span>
                     </a>
+                    <a href="#" class="nav-item" data-view="planner" data-i18n="nav_planner">
+                        <i data-lucide="settings-2"></i>
+                        <span>Planner & Rules</span>
+                    </a>
+                    <a href="#" class="nav-item" data-view="workshop" data-i18n="nav_workshop">
+                        <i data-lucide="building-2"></i>
+                        <span>Workshop</span>
+                    </a>
                 </nav>
 
                 <div class="sidebar-footer" style="margin-top: auto;">
@@ -229,7 +237,7 @@
                                         </div>
                                         <div class="expansion-stat-row">
                                             <div class="exp-label">Total Distance</div>
-                                            <div class="exp-val">12,542 <small>km</small></div>
+                                            <div class="exp-val" id="kpi-total-distance-v2">0 <small>km</small></div>
                                         </div>
                                     </div>
                                 </div>
@@ -417,6 +425,9 @@
                 <!-- Vehicle Intelligence View -->
                 <div id="view-vehicle-intel" class="sub-view hidden-view">
                     <div class="module-content-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
 
                         <!-- â”€â”€ Header Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
                         <div class="module-header-row" style="align-items:flex-start; gap:16px; flex-wrap:wrap;">
@@ -645,6 +656,9 @@
                 <!-- Fuel Analytics View -->
                 <div id="view-fuel" class="sub-view hidden-view">
                     <div class="module-content-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
                         <div class="module-header-row" style="margin-bottom: 24px;">
                             <h3 class="section-title">Fuel Intelligence</h3>
                             <div style="display:flex; gap:12px; align-items:center;">
@@ -652,11 +666,9 @@
                                     <button class="segment-btn active" id="fuel-scope-org" onclick="switchFuelScope('org')">Organization Level</button>
                                     <button class="segment-btn" id="fuel-scope-vehicle" onclick="switchFuelScope('vehicle')">Vehicle Level</button>
                                 </div>
-                                <div id="fuel-vehicle-selector-wrap" style="display:none; transition: all 0.3s ease;">
-                                    <input type="text" id="fuel-vehicle-search" placeholder="Search vehicle..." oninput="filterFuelDropdown()" style="padding:6px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; width:200px; margin-bottom:4px;">
-                                    <select id="fuel-vehicle-selector" class="glass-select" onchange="handleFuelVehicleChange()">
-                                        <option value="">Select Vehicle...</option>
-                                    </select>
+                                <div id="fuel-vehicle-selector-wrap" style="display:none; transition: all 0.3s ease; position:relative;">
+                                    <input type="text" id="fuel-vehicle-search" placeholder="Search any vehicle..." oninput="searchFuelVehicle(this.value)" onfocus="searchFuelVehicle(this.value)" style="padding:8px 12px; border-radius:8px; border:1px solid var(--fleet-border); background:var(--fleet-card-bg); color:var(--fleet-text); font-size:13px; width:260px;">
+                                    <div id="fuel-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:300px; overflow-y:auto; z-index:999; box-shadow:0 8px 24px rgba(0,0,0,0.12);"></div>
                                 </div>
                             </div>
                             <div id="fuel-asset-context" class="stats-badge primary">Global Fleet Summary</div>
@@ -813,14 +825,15 @@
                 <!-- Driver Intelligence View -->
                 <div id="view-driver" class="sub-view hidden-view">
                     <div class="module-content-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
                         <div class="module-header-row">
                             <h3 class="section-title">Driver Intelligence & Analytics</h3>
                             <div style="display:flex; align-items:center; gap:12px;">
-                                <div>
-                                    <input type="text" id="driver-vehicle-search" placeholder="Search vehicle..." oninput="filterDriverDropdown()" style="padding:6px 12px; border-radius:8px; border:1px solid #dbe3ee; background:#f8fafc; color:#1e293b; font-size:13px; width:200px; margin-bottom:4px;">
-                                    <select id="driver-vehicle-selector" class="glass-select" onchange="onDriverVehicleChange()" style="min-width:200px;">
-                                        <option value="">Select KE Vehicle...</option>
-                                    </select>
+                                <div style="position:relative;" id="driver-search-container">
+                                    <input type="text" id="driver-vehicle-search" placeholder="Search any vehicle..." oninput="searchDriverVehicles(this.value)" onfocus="searchDriverVehicles(this.value)" style="padding:8px 12px; border-radius:8px; border:1px solid #dbe3ee; background:#f8fafc; color:#1e293b; font-size:13px; width:260px;">
+                                    <div id="driver-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:300px; overflow-y:auto; z-index:999; box-shadow:0 8px 24px rgba(0,0,0,0.12);"></div>
                                 </div>
                                 <div style="display:flex; gap:6px;">
                                     <button class="glass-btn" onclick="openDriverCompareModal()" style="font-size:0.72rem; padding:6px 12px;"><i data-lucide="git-compare" style="width:13px;"></i> Compare</button>
@@ -962,13 +975,25 @@
                         <!-- DRIVER COMPARISON SECTION -->
                         <div class="premium-card" id="driver-compare-section" style="margin-top:24px; display:none;">
                             <h3 class="chart-title"><i data-lucide="git-compare"></i> Driver Comparison</h3>
-                            <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:20px; align-items:start;">
-                                <div id="compare-driver-a" style="padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
-                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Driver A</div>
+                            <div style="display:flex; gap:16px; margin-bottom:16px; align-items:start;">
+                                <div style="flex:1; position:relative;" id="compare-search-a-container">
+                                    <label style="font-size:0.72rem; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">Vehicle A</label>
+                                    <input type="text" id="compare-search-a" placeholder="Search vehicle A..." oninput="searchCompareVehicle('a', this.value)" onfocus="searchCompareVehicle('a', this.value)" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #dbe3ee; background:#f8fafc; color:#1e293b; font-size:13px; box-sizing:border-box;">
+                                    <div id="compare-results-a" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:250px; overflow-y:auto; z-index:999; box-shadow:0 8px 24px rgba(0,0,0,0.12);"></div>
                                 </div>
-                                <div style="display:flex; align-items:center; padding-top:60px; color:#94a3b8; font-weight:700; font-size:1.2rem;">VS</div>
+                                <div style="padding-top:20px; color:#94a3b8; font-weight:700; font-size:1rem;">VS</div>
+                                <div style="flex:1; position:relative;" id="compare-search-b-container">
+                                    <label style="font-size:0.72rem; color:#64748b; font-weight:600; display:block; margin-bottom:4px;">Vehicle B</label>
+                                    <input type="text" id="compare-search-b" placeholder="Search vehicle B..." oninput="searchCompareVehicle('b', this.value)" onfocus="searchCompareVehicle('b', this.value)" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid #dbe3ee; background:#f8fafc; color:#1e293b; font-size:13px; box-sizing:border-box;">
+                                    <div id="compare-results-b" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:250px; overflow-y:auto; z-index:999; box-shadow:0 8px 24px rgba(0,0,0,0.12);"></div>
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start;">
+                                <div id="compare-driver-a" style="padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Vehicle A</div>
+                                </div>
                                 <div id="compare-driver-b" style="padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
-                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Driver B</div>
+                                    <div style="text-align:center; color:#94a3b8; padding:30px;">Select Vehicle B</div>
                                 </div>
                             </div>
                         </div>
@@ -981,6 +1006,9 @@
                 <!-- ============================================================ -->
                 <div id="view-data-import" class="sub-view hidden-view">
                     <div class="module-content-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
                         <div class="module-header-row" style="margin-bottom: 24px; align-items: flex-end;">
                             <div>
                                 <h3 class="section-title">Fleet Data Management</h3>
@@ -1330,24 +1358,178 @@
                     </div>
                 </div>
 
-                <!-- Maintenance View (Restored) -->
+                <!-- Maintenance View -->
                 <div id="view-maintenance" class="sub-view hidden-view">
-                    <div class="module-content-container">
-                        <div class="module-header-row"><h3 class="section-title">Maintenance & Workshop Control</h3></div>
-                        <div class="stats-row">
-                            <div class="premium-card mini-stat"><span class="card-label">Active Workshop Jobs</span><span class="card-value">0</span></div>
-                            <div class="premium-card mini-stat"><span class="card-label">Overdue Service</span><span class="card-value">0</span></div>
+                    <div class="fleet-v2-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
                         </div>
-                        <div class="premium-card" style="margin-top:24px; padding:40px; text-align:center; color:var(--text-dim);">
-                             <i data-lucide="cog" style="width:48px; opacity:0.1; margin-bottom:12px;"></i>
-                             <p>Maintenance planning module is active. Load vehicle telemetry to see predictions.</p>
+                        <div class="dash-v2-header" style="margin-bottom:24px;">
+                            <div><h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Maintenance Center</h1><p style="color:var(--text-dim); margin-top:4px;">Fleet health, upcoming services, overdue alerts, and workshop management</p></div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="glass-btn primary" onclick="loadMaintenanceDashboard()" style="padding:10px 20px;"><i data-lucide="refresh-cw" style="width:14px; margin-right:6px;"></i> Refresh</button>
+                                <button class="glass-btn primary" onclick="openMaintenanceLogForm()" style="padding:10px 20px;"><i data-lucide="plus-circle" style="width:14px; margin-right:6px;"></i> Log Service</button>
+                                <button class="glass-btn primary" onclick="openReportsView()" style="padding:10px 20px; background:#8b5cf6;"><i data-lucide="bar-chart-3" style="width:14px; margin-right:6px;"></i> Reports</button>
+                            </div>
                         </div>
+                        <!-- KPI Cards -->
+                        <div id="maint-kpi-cards" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;"></div>
+                        <!-- Fleet Health + Chart Row -->
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;">
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Fleet Health</h3><span class="stats-badge primary">Live</span></div>
+                                <div style="display:flex; align-items:center; gap:20px; margin-top:16px;">
+                                    <div style="position:relative; width:140px; height:140px; flex-shrink:0;"><canvas id="maintHealthDonut"></canvas><div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;"><span id="maintHealthScore" style="font-size:1.6rem; font-weight:800; color:var(--text-primary);">0%</span><span style="font-size:0.7rem; color:var(--text-dim);">Health</span></div></div>
+                                    <div id="maintHealthLegend" style="flex:1; display:flex; flex-direction:column; gap:8px;"></div>
+                                </div>
+                            </div>
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Maintenance by Type</h3></div>
+                                <div style="margin-top:16px;"><canvas id="maintByTypeChart"></canvas></div>
+                            </div>
+                        </div>
+                        <!-- Type Category + Recent Activity -->
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;">
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Type Category Distribution</h3></div>
+                                <div style="margin-top:16px;"><canvas id="maintTypeCategoryChart"></canvas></div>
+                            </div>
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Recent Type Activity</h3></div>
+                                <div id="maint-type-activity" style="margin-top:12px; max-height:280px; overflow-y:auto;"></div>
+                            </div>
+                        </div>
+                        <!-- Template Activity -->
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;">
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Template Category Distribution</h3></div>
+                                <div style="margin-top:16px;"><canvas id="maintTemplateCategoryChart"></canvas></div>
+                            </div>
+                            <div class="premium-card" style="padding:24px;">
+                                <div class="dash-v2-card-header"><h3 style="font-size:1rem; font-weight:700;">Recent Template Activity</h3></div>
+                                <div id="maint-template-activity" style="margin-top:12px; max-height:280px; overflow-y:auto;"></div>
+                            </div>
+                        </div>
+                        <!-- Tabs -->
+                        <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--border-light); align-items:center;">
+                            <button class="maint-tab-btn glass-btn" data-tab="upcoming" onclick="switchMaintTab('upcoming')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Upcoming</button>
+                            <button class="maint-tab-btn glass-btn" data-tab="overdue" onclick="switchMaintTab('overdue')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Overdue</button>
+                            <button class="maint-tab-btn glass-btn" data-tab="calendar" onclick="switchMaintTab('calendar')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Calendar</button>
+                            <button class="maint-tab-btn glass-btn" data-tab="activity" onclick="switchMaintTab('activity')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Activity</button>
+                            <button class="maint-tab-btn glass-btn" data-tab="workshops" onclick="switchMaintTab('workshops')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Workshops</button>
+                            <div style="flex:1;"></div>
+                            <button class="glass-btn" onclick="recalculateFleet()" style="padding:8px 16px; border-radius:8px; font-size:0.8rem; font-weight:600; border:none; cursor:pointer; background:var(--brand-primary); color:#fff; display:flex; align-items:center; gap:6px;">
+                                <i data-lucide="refresh-cw" style="width:14px;"></i> Recalculate Fleet
+                            </button>
+                        </div>
+                        <!-- Active tab content -->
+                        <div id="maint-tab-content"></div>
                     </div>
                 </div>
 
+                <!-- Maintenance Log Modal -->
+                <div id="maint-log-modal" class="modal-overlay hidden-view" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:none; align-items:center; justify-content:center;">
+                    <div class="premium-card" style="width:500px; max-width:90vw; max-height:80vh; overflow-y:auto; padding:32px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;"><h3 style="font-size:1.1rem; font-weight:700;">Record Maintenance</h3><button onclick="closeMaintenanceLogModal()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button></div>
+                        <form id="maint-log-form" onsubmit="submitMaintenanceLog(event)">
+                            <div style="display:flex; flex-direction:column; gap:14px;">
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Vehicle</label><select id="maint-log-vehicle" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"></select></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Maintenance Type</label><select id="maint-log-type" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"></select></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Odometer (km)</label><input type="number" id="maint-log-odo" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Service Type</label><select id="maint-log-stype" required style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"><option value="scheduled">Scheduled</option><option value="unscheduled">Unscheduled</option><option value="inspection">Inspection</option></select></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Workshop</label><select id="maint-log-workshop" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"><option value="">-- Select --</option></select></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Technician</label><input type="text" id="maint-log-tech" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Cost (PKR)</label><input type="number" id="maint-log-cost" step="0.01" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem;"/></div>
+                                <div><label style="font-size:0.78rem; font-weight:600; color:var(--text-secondary);">Notes</label><textarea id="maint-log-notes" rows="2" style="width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border-light); background:var(--fleet-bg); color:var(--text-primary); font-size:0.85rem; resize:vertical;"></textarea></div>
+                            </div>
+                            <div style="display:flex; gap:10px; margin-top:20px;"><button type="button" onclick="closeMaintenanceLogModal()" style="flex:1; padding:10px; border-radius:8px; border:1px solid var(--border-light); background:#fff; color:var(--text-secondary); cursor:pointer; font-weight:600;">Cancel</button><button type="submit" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--brand-primary); color:#fff; cursor:pointer; font-weight:600;">Save</button></div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Planner & Rules View -->
+                <div id="view-planner" class="sub-view hidden-view">
+                    <div class="fleet-v2-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s; position:relative; z-index:1001;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
+                        <div class="dash-v2-header" style="margin-bottom:24px;">
+                            <div><h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Maintenance Planner & Rule Engine</h1><p style="color:var(--text-dim); margin-top:4px;">Manage maintenance types, rules, templates, vehicle plans, and rule history</p></div>
+                        </div>
+                        <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--border-light); flex-wrap:wrap;">
+                            <button class="planner-tab-btn glass-btn" data-planner="types" onclick="switchPlannerTab('types')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Maintenance Types</button>
+                            <button class="planner-tab-btn glass-btn" data-planner="rules" onclick="switchPlannerTab('rules')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Rule Builder</button>
+                            <button class="planner-tab-btn glass-btn" data-planner="templates" onclick="switchPlannerTab('templates')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Templates</button>
+                            <button class="planner-tab-btn glass-btn" data-planner="plans" onclick="switchPlannerTab('plans')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Vehicle Plans</button>
+                            <button class="planner-tab-btn glass-btn" data-planner="overrides" onclick="switchPlannerTab('overrides')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Rule Overrides</button>
+                            <button class="planner-tab-btn glass-btn" data-planner="history" onclick="switchPlannerTab('history')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Rule History</button>
+                        </div>
+                        <div id="planner-tab-content"></div>
+                    </div>
+                </div>
+                <!-- Workshop View -->
+                <div id="view-workshop" class="sub-view hidden-view">
+                    <div class="fleet-v2-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('maintenance')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s; position:relative; z-index:1001;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Maintenance</button>
+                        </div>
+                        <div class="dash-v2-header" style="margin-bottom:24px;">
+                            <div><h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Workshop Management</h1><p style="color:var(--text-dim); margin-top:4px;">Manage workshop jobs, technicians, and maintenance workflow</p></div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="glass-btn primary" onclick="loadWorkshopDashboard()" style="padding:10px 20px;"><i data-lucide="refresh-cw" style="width:14px; margin-right:6px;"></i> Refresh</button>
+                                <button class="glass-btn primary" onclick="openWorkshopJobModal()" style="padding:10px 20px;"><i data-lucide="plus-circle" style="width:14px; margin-right:6px;"></i> New Job</button>
+                            </div>
+                        </div>
+                        <!-- Workshop KPI Cards -->
+                        <div id="workshop-kpi-cards" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;"></div>
+                        <!-- Workshop Tabs -->
+                        <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--border-light); align-items:center;">
+                            <button class="workshop-tab-btn glass-btn active" data-wstab="jobs" onclick="switchWorkshopTab('jobs')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:var(--brand-primary); color:#fff;">Jobs</button>
+                            <button class="workshop-tab-btn glass-btn" data-wstab="technicians" onclick="switchWorkshopTab('technicians')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Technicians</button>
+                            <button class="workshop-tab-btn glass-btn" data-wstab="inventory" onclick="switchWorkshopTab('inventory')" style="padding:10px 20px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.85rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Inventory</button>
+                            <div style="flex:1;"></div>
+                        </div>
+                        <div id="workshop-tab-content"></div>
+                    </div>
+                </div>
+                <!-- Workshop Job Detail Modal -->
+                <div id="workshop-job-detail-modal" class="modal-overlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10000; display:none; align-items:center; justify-content:center; overflow-y:auto; padding:20px;">
+                    <div class="premium-card" style="width:800px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:32px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <h3 id="ws-detail-title" style="font-size:1.1rem; font-weight:700;">Job Details</h3>
+                            <button onclick="closeWorkshopJobDetail()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-secondary);">&times;</button>
+                        </div>
+                        <div id="workshop-job-detail-content"></div>
+                    </div>
+                </div>
+                <!-- Reports & Analytics View -->
+                <div id="view-reports" class="sub-view hidden-view">
+                    <div class="fleet-v2-container">
+                        <div class="dash-v2-header" style="margin-bottom:24px;">
+                            <div><h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Reports & Analytics</h1><p style="color:var(--text-dim); margin-top:4px;">Enterprise maintenance reports, cost analytics, and fleet performance insights</p></div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="glass-btn primary" onclick="loadReportsDashboard()" style="padding:10px 20px;"><i data-lucide="refresh-cw" style="width:14px; margin-right:6px;"></i> Refresh</button>
+                            </div>
+                        </div>
+                        <div id="reports-kpi-cards" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:20px;"></div>
+                        <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--border-light); align-items:center; flex-wrap:wrap;">
+                            <button class="reports-tab-btn glass-btn active" data-rptab="overview" onclick="switchReportsTab('overview')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:var(--brand-primary); color:#fff;">Overview</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="cost" onclick="switchReportsTab('cost')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Cost Analysis</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="workshop" onclick="switchReportsTab('workshop')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Workshop</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="technicians" onclick="switchReportsTab('technicians')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Technicians</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="inventory" onclick="switchReportsTab('inventory')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Inventory</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="vehicles" onclick="switchReportsTab('vehicles')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Vehicles</button>
+                            <button class="reports-tab-btn glass-btn" data-rptab="monthly" onclick="switchReportsTab('monthly')" style="padding:10px 16px; border-radius:8px 8px 0 0; font-weight:600; font-size:0.82rem; border:none; cursor:pointer; background:transparent; color:var(--text-secondary);">Monthly/Yearly</button>
+                        </div>
+                        <div id="reports-tab-content"></div>
+                    </div>
+                </div>
                 <!-- Alerts Monitor View -->
                 <div id="view-alerts" class="sub-view hidden-view">
                     <div class="fleet-v2-container">
+                        <div style="margin-bottom:16px;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s;" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
                         <div class="dash-v2-card-header" style="margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
                             <div>
                                 <h1 style="font-family:'Space Grotesk'; font-size:1.8rem; font-weight:800; color:var(--text-primary);">Alerts</h1>
@@ -1481,6 +1663,9 @@
                 <!-- ============================================================ -->
                 <div id="view-map" class="sub-view hidden-view">
                     <div class="lm-layout">
+                        <div style="position:absolute; top:12px; left:12px; z-index:1000;">
+                            <button onclick="switchView('analytics')" style="padding:6px 14px; border-radius:8px; border:1px solid #dbe3ee; background:#fff; color:#64748b; font-size:0.78rem; cursor:pointer; font-weight:600; transition:0.15s; box-shadow:0 2px 8px rgba(0,0,0,0.08);" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">&#8592; Back to Dashboard</button>
+                        </div>
 
                         <!-- LEFT SIDEBAR — Fleet Explorer -->
                         <aside class="lm-sidebar" id="fleet-panel">

@@ -222,3 +222,11 @@ generate_mis_batch.py
 verify.py
 -w
 0
+
+# Database & vector files
+*.db
+*.sqlite3
+qdrant/
+qdrant.zip
+test_report.json
+e2e_test_report.json

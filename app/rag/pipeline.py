@@ -6,6 +6,7 @@ from app.retrievers.sql_retriever import SQLRetriever
 from app.vector.qdrant import qdrant_service
 from app.llm.client import deepseek_client
 from app.rag.database_brain import get_sql_prompt, get_business_rules
+from app.services.fleet_data_service import fleet_data_service
 from loguru import logger
 
 
@@ -14,6 +15,33 @@ class RAGPipeline:
         self.db = db
         self.current_user = current_user
         self.sql_retriever = SQLRetriever(db, current_user)
+
+    async def _get_fleet_context(self) -> List[str]:
+        try:
+            ctx = []
+            summary = await fleet_data_service.get_fleet_summary(self.db)
+            ctx.append(f"Fleet Summary: {summary.get('total_vehicles', 'N/A')} vehicles, "
+                       f"{summary.get('online_vehicles', 'N/A')} online, "
+                       f"{summary.get('offline_vehicles', 'N/A')} offline, "
+                       f"health avg {summary.get('fleet_health_avg', 'N/A')}%, "
+                       f"total cost Rs.{summary.get('total_combined_cost', 0):,.2f}")
+            health = await fleet_data_service.get_fleet_health(self.db)
+            critical = [h for h in health if h.get('health_score', 100) < 40]
+            warning = [h for h in health if 40 <= h.get('health_score', 100) < 70]
+            if critical:
+                ctx.append(f"Critical Health: {', '.join(h['device_name'] for h in critical[:5])}")
+            if warning:
+                ctx.append(f"Warning Health: {', '.join(h['device_name'] for h in warning[:5])}")
+            inv = await fleet_data_service.get_inventory_status(self.db)
+            if inv:
+                ctx.append(f"Inventory: {inv.get('total_parts', 0)} parts, "
+                           f"value Rs.{inv.get('total_value', 0):,.2f}, "
+                           f"{inv.get('low_stock_items', 0)} low stock, "
+                           f"{inv.get('out_of_stock_items', 0)} out of stock")
+            return ctx
+        except Exception as e:
+            logger.debug(f"[FLEET_CTX] Fleet context unavailable: {e}")
+            return []
 
     async def _get_optimized_context(self, history: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
@@ -104,6 +132,12 @@ class RAGPipeline:
                     context.append(f"Docs: {semantic_data}")
                 except Exception as e:
                     logger.warning(f"Semantic search failed: {e}")
+
+            # STEP 2b: Inject Fleet Data Service context for maintenance/workshop/inventory queries
+            if intent in ["MAINTENANCE", "ANALYTICS", "HYBRID"] or any(kw in query.lower() for kw in
+                ["health", "maintenance", "workshop", "inventory", "fleet", "summary", "cost", "parts"]):
+                fleet_ctx = await self._get_fleet_context()
+                context.extend(fleet_ctx)
 
             # STEP 3: Final Streamed Response
             rules = get_business_rules()

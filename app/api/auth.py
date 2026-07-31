@@ -60,11 +60,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     logger.info(f"Registration attempt for: {user_in.email}")
     # 1. Check local DB
-    query = select(User).where(User.email == user_in.email)
-    result = await db.execute(query)
-    if result.scalar_one_or_none():
-        logger.warning(f"Registration failed: User {user_in.email} already exists")
-        raise HTTPException(status_code=400, detail="User already registered in AI-Telematics")
+    try:
+        query = select(User).where(User.email == user_in.email)
+        result = await db.execute(query)
+        if result.scalar_one_or_none():
+            logger.warning(f"Registration failed: User {user_in.email} already exists")
+            raise HTTPException(status_code=400, detail="User already registered in AI-Telematics")
+    except Exception as e:
+        logger.warning(f"[REGISTER] DB unavailable, proceeding to Traccar sync: {e}")
 
     # 2. Sync to Traccar
     try:
@@ -97,31 +100,37 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
             jsessionid = login_resp.cookies.get("JSESSIONID")
             
             # 4. Save/Update in local DB
-            import asyncio
-            user = None
-            for _ in range(5): 
-                query = select(User).where(User.email == user_in.email)
-                res = await db.execute(query)
-                user = res.scalar_one_or_none()
-                if user: break
-                await asyncio.sleep(1)
-            
-            if not user:
-                logger.warning(f"Local user record not found yet for {user_in.email}, creating placeholder")
-                user = User(id=traccar_user["id"], email=user_in.email, name=user_in.name)
-                db.add(user)
-                await db.commit()
-                await db.refresh(user)
+            try:
+                import asyncio
+                user = None
+                for _ in range(5):
+                    query = select(User).where(User.email == user_in.email)
+                    res = await db.execute(query)
+                    user = res.scalar_one_or_none()
+                    if user: break
+                    await asyncio.sleep(1)
 
-            attrs = user.attributes or {}
-            if jsessionid:
-                attrs["jsessionid"] = jsessionid
-                user.attributes = attrs
-                await db.commit()
-            
-            # Create AI-Telematics token
-            access_token = create_access_token(data={"sub": user.email, "role": "USER"})
-            return {"access_token": access_token, "token_type": "bearer", "role": "USER", "name": user.name}
+                if not user:
+                    logger.warning(f"Local user record not found yet for {user_in.email}, creating placeholder")
+                    user = User(id=traccar_user["id"], email=user_in.email, name=user_in.name)
+                    db.add(user)
+                    await db.commit()
+                    await db.refresh(user)
+
+                attrs = user.attributes or {}
+                if jsessionid:
+                    attrs["jsessionid"] = jsessionid
+                    user.attributes = attrs
+                    await db.commit()
+                email_for_token = user.email
+                name_for_token = user.name
+            except Exception as _db_err:
+                logger.warning(f"[REGISTER] DB save skipped (remote DB unavailable): {_db_err}")
+                email_for_token = user_in.email
+                name_for_token = user_in.name
+
+            access_token = create_access_token(data={"sub": email_for_token, "role": "USER"})
+            return {"access_token": access_token, "token_type": "bearer", "role": "USER", "name": name_for_token}
 
     except HTTPException as he:
         raise he
